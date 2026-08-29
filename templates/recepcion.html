@@ -5,87 +5,827 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Turnos - Recepción (v2.0)</title>
     <style>
-        /* [MANTENER TODO TU CSS EXISTENTE...] */
-        /* Solo agregaré esto al final del CSS: */
-        
-        /* Nuevos estilos para sistema profesional */
-        .doctor-status-card .doctor-consultorio {
-            font-size: 12px;
-            color: #3498db;
-            background: #e3f2fd;
-            padding: 2px 8px;
-            border-radius: 10px;
-            margin-top: 4px;
-            display: inline-block;
-        }
-        
-        .doctor-status-card .doctor-enfermero {
-            font-size: 12px;
-            color: #27ae60;
-            background: #e8f5e9;
-            padding: 2px 8px;
-            border-radius: 10px;
-            margin-top: 4px;
-            display: inline-block;
-        }
-        
-        .status-flag {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            margin-right: 5px;
-        }
-        
-        .status-activo { background-color: #28a745; }
-        .status-inactivo { background-color: #dc3545; }
-        .status-descanso { background-color: #ffc107; }
-        .status-emergencia { background-color: #dc3545; animation: pulse 1.5s infinite; }
-        
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        
-        .flujo-info {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 13px;
-        }
-        
-        .flujo-step {
-            display: flex;
-            align-items: center;
-            margin: 5px 0;
-        }
-        
-        .flujo-step .step-number {
-            background: #007bff;
-            color: white;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            text-align: center;
-            line-height: 20px;
-            margin-right: 10px;
-            font-size: 12px;
-        }
-        
-        .flujo-step .step-text {
-            flex: 1;
-        }
-        
-        .gabinete-warning {
-            border-left: 4px solid #17a2b8;
-            background: #e8f4f8;
-            padding: 10px;
-            margin: 10px 0;
-            font-size: 13px;
-        }
+        :root {
+    --primary: #1f4f8a;
+    --primary-dark: #163a66;
+    --primary-soft: #eaf2fb;
+
+    --secondary: #4f6b85;
+
+    --success: #2f855a;
+    --success-soft: #eaf7f0;
+
+    --warning: #b7791f;
+    --warning-soft: #fff7e6;
+
+    --danger: #c53030;
+    --danger-soft: #fff0f0;
+
+    --info: #3182a8;
+    --info-soft: #edf8fc;
+
+    --bg: #f4f7fa;
+    --surface: #ffffff;
+    --surface-alt: #f8fafc;
+
+    --border: #dbe3ea;
+    --border-strong: #c7d2dc;
+
+    --text: #243447;
+    --text-soft: #657487;
+    --text-light: #8b98a7;
+
+    --shadow-sm: 0 2px 8px rgba(18, 38, 63, 0.06);
+    --shadow-md: 0 8px 24px rgba(18, 38, 63, 0.08);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 18px;
+}
+
+/* ======================================================
+   RESET
+====================================================== */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family:
+        Inter,
+        "Segoe UI",
+        Roboto,
+        Helvetica,
+        Arial,
+        sans-serif;
+
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+    padding: 24px;
+}
+
+/* ======================================================
+   CONTENEDOR GENERAL
+====================================================== */
+
+.container {
+    width: 100%;
+    max-width: 1500px;
+    margin: 0 auto;
+}
+
+/* ======================================================
+   ENCABEZADO
+====================================================== */
+
+.container > div:first-child {
+    background: linear-gradient(
+        135deg,
+        var(--primary-dark),
+        var(--primary)
+    );
+
+    padding: 24px 28px;
+    border-radius: var(--radius-lg);
+    color: white;
+    box-shadow: var(--shadow-md);
+    margin-bottom: 24px !important;
+}
+
+.container > div:first-child h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+}
+
+.container > div:first-child small {
+    display: inline-block;
+    margin-top: 5px;
+    color: #cfe3f8 !important;
+    font-size: 13px;
+}
+
+/* ======================================================
+   TARJETAS / SECCIONES
+====================================================== */
+
+.form-section,
+.busqueda-section,
+.turnos-section,
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 22px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+.section-title,
+.form-section h2,
+.form-section h3,
+.busqueda-section h3,
+.card h3 {
+    color: var(--primary-dark);
+    font-weight: 650;
+    font-size: 18px;
+    margin-bottom: 18px;
+}
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.section-title::before {
+    content: "";
+    width: 4px;
+    height: 22px;
+    background: var(--primary);
+    border-radius: 20px;
+}
+
+/* ======================================================
+   FORMULARIOS
+====================================================== */
+
+form {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.form-group label {
+    font-size: 13px;
+    color: var(--text-soft);
+    font-weight: 600;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    min-height: 42px;
+
+    padding: 10px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+
+    background: white;
+    color: var(--text);
+
+    font-size: 14px;
+    outline: none;
+
+    transition:
+        border-color 0.2s ease,
+        box-shadow 0.2s ease,
+        background 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(31, 79, 138, 0.12);
+}
+
+input:disabled {
+    background: #f0f3f6 !important;
+    color: var(--text-soft);
+}
+
+small {
+    font-size: 12px;
+    color: var(--text-light);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ======================================================
+   BOTONES
+====================================================== */
+
+button {
+    appearance: none;
+    border: 0;
+    border-radius: var(--radius-sm);
+
+    background: var(--primary);
+    color: white;
+
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        background 0.2s ease,
+        transform 0.15s ease,
+        box-shadow 0.2s ease;
+}
+
+button:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* botón principal del form */
+
+form button[type="submit"] {
+    grid-column: 1 / -1;
+    justify-self: start;
+    padding-left: 22px;
+    padding-right: 22px;
+}
+
+/* ======================================================
+   ACCIONES RÁPIDAS
+====================================================== */
+
+.botones-rapidos {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.boton-rapido {
+    background: var(--primary);
+}
+
+.boton-rapido.secundario {
+    background: var(--secondary);
+}
+
+.boton-rapido.terciario {
+    background: var(--success);
+}
+
+.boton-rapido.cuaternario {
+    background: var(--info);
+}
+
+/* ======================================================
+   FLUJO DEL HOSPITAL
+====================================================== */
+
+.flujo-info {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.flujo-info > strong {
+    color: var(--primary-dark);
+    display: block;
+    margin-bottom: 12px;
+}
+
+.flujo-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    padding: 8px 0;
+    border-bottom: 1px solid #edf1f5;
+}
+
+.flujo-step:last-child {
+    border-bottom: none;
+}
+
+.step-number {
+    width: 28px !important;
+    height: 28px !important;
+
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--primary) !important;
+    color: white;
+
+    border-radius: 50%;
+    font-size: 12px !important;
+    font-weight: 700;
+
+    line-height: normal !important;
+    margin-right: 0 !important;
+    flex-shrink: 0;
+}
+
+.step-text {
+    color: var(--text-soft);
+    font-size: 13px;
+}
+
+/* ======================================================
+   ADVERTENCIA GABINETE
+====================================================== */
+
+.gabinete-warning {
+    background: var(--info-soft);
+    border: 1px solid #c6e8f3;
+    border-left: 5px solid var(--info);
+
+    color: #315569;
+
+    padding: 16px 18px;
+    border-radius: var(--radius-md);
+
+    margin-bottom: 20px;
+    font-size: 13px;
+}
+
+.gabinete-warning strong {
+    color: #22516b;
+}
+
+/* ======================================================
+   BUSCADOR
+====================================================== */
+
+.busqueda-section {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.busqueda-section h3 {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+}
+
+.busqueda-section button {
+    min-height: 42px;
+}
+
+/* ======================================================
+   TURNOS
+====================================================== */
+
+#listaTurnos {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fill, minmax(260px, 1fr));
+
+    gap: 14px;
+}
+
+.turno-card {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+
+    padding: 16px;
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.turno-card:hover {
+    transform: translateY(-2px);
+    border-color: #b8c9d8;
+    box-shadow: var(--shadow-md);
+}
+
+.turno-header {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--primary-dark);
+    margin-bottom: 10px;
+}
+
+.turno-info {
+    font-size: 13px;
+    color: var(--text-soft);
+    margin: 5px 0;
+}
+
+.turno-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.turno-acciones button {
+    flex: 1;
+    min-width: 75px;
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+/* ======================================================
+   VISOR DOCTORES / ENFERMEROS
+====================================================== */
+
+.visor-doctores {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fill, minmax(220px, 1fr));
+
+    gap: 12px;
+    margin-top: 15px;
+}
+
+.doctor-status-card {
+    background: var(--surface-alt);
+
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--text-light);
+
+    border-radius: var(--radius-md);
+    padding: 14px;
+
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.doctor-status-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+
+.doctor-status-card.activo {
+    border-left-color: var(--success);
+}
+
+.doctor-status-card.ocupado {
+    border-left-color: var(--warning);
+}
+
+.doctor-status-card.inactivo {
+    border-left-color: var(--danger);
+}
+
+.doctor-status-nombre {
+    color: var(--text);
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.doctor-status-especialidad {
+    color: var(--text-soft);
+    font-size: 12px;
+    margin-top: 4px;
+}
+
+.doctor-status-estado {
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-soft);
+}
+
+.doctor-status-card .doctor-consultorio {
+    display: inline-block;
+
+    margin-top: 8px;
+    padding: 3px 8px;
+
+    background: var(--primary-soft);
+    color: var(--primary);
+
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.doctor-status-card .doctor-enfermero {
+    display: inline-block;
+
+    margin-top: 6px;
+    padding: 3px 8px;
+
+    background: var(--success-soft);
+    color: var(--success);
+
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.status-flag {
+    display: inline-block;
+
+    width: 8px;
+    height: 8px;
+
+    border-radius: 50%;
+    margin-right: 6px;
+}
+
+.status-activo {
+    background: var(--success);
+}
+
+.status-inactivo {
+    background: var(--danger);
+}
+
+.status-descanso {
+    background: var(--warning);
+}
+
+.status-emergencia {
+    background: var(--danger);
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.ultima-actualizacion {
+    color: var(--text-light);
+    font-size: 11px;
+    margin-top: 12px;
+}
+
+/* ======================================================
+   TURNOS EN TRÁNSITO
+====================================================== */
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.transito-container {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fill, minmax(230px, 1fr));
+
+    gap: 12px;
+}
+
+.turno-transito {
+    background: var(--surface-alt);
+
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--primary);
+
+    border-radius: var(--radius-md);
+    padding: 14px;
+}
+
+.turno-transito.alerta {
+    background: var(--danger-soft);
+    border-left-color: var(--danger);
+}
+
+.transito-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.transito-numero {
+    font-weight: 700;
+    color: var(--primary-dark);
+}
+
+.transito-tiempo {
+    font-size: 11px;
+    font-weight: 700;
+
+    background: var(--danger-soft);
+    color: var(--danger);
+
+    padding: 3px 7px;
+    border-radius: 20px;
+}
+
+.transito-tiempo.normal {
+    background: var(--success-soft);
+    color: var(--success);
+}
+
+.transito-paciente {
+    margin-top: 8px;
+    color: var(--text);
+    font-size: 13px;
+}
+
+.transito-detalles {
+    margin-top: 8px;
+}
+
+.transito-estacion {
+    display: inline-block;
+
+    background: var(--primary-soft);
+    color: var(--primary);
+
+    padding: 3px 8px;
+    border-radius: 20px;
+
+    font-size: 11px;
+}
+
+.transito-alerta {
+    margin-top: 8px;
+
+    color: var(--danger);
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.sin-transito,
+.loading {
+    padding: 20px;
+    text-align: center;
+    color: var(--text-light);
+    font-size: 13px;
+}
+
+/* ======================================================
+   NOTIFICACIONES
+====================================================== */
+
+#notificacionesRecepcion {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-alt);
+    padding: 10px;
+}
+
+/* ======================================================
+   BADGES
+====================================================== */
+
+.badge {
+    font-size: 10px;
+    font-weight: 700;
+}
+
+/* ======================================================
+   BOTONES AUXILIARES
+====================================================== */
+
+.btn-refresh {
+    background: var(--secondary);
+    font-size: 12px;
+    padding: 8px 12px;
+}
+
+.btn-refresh:hover {
+    background: #3d566e;
+}
+
+/* ======================================================
+   RESPONSIVE TABLET
+====================================================== */
+
+@media (max-width: 900px) {
+
+    body {
+        padding: 14px;
+    }
+
+    form {
+        grid-template-columns: 1fr;
+    }
+
+    form button[type="submit"] {
+        grid-column: auto;
+        width: 100%;
+    }
+
+    .container > div:first-child {
+        padding: 20px;
+    }
+
+    .container > div:first-child h1 {
+        font-size: 23px;
+    }
+
+    .botones-rapidos {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .busqueda-section {
+        grid-template-columns: 1fr;
+    }
+
+    .busqueda-section h3 {
+        grid-column: auto;
+    }
+
+    .busqueda-section button {
+        width: 100%;
+    }
+}
+
+/* ======================================================
+   RESPONSIVE MÓVIL
+====================================================== */
+
+@media (max-width: 600px) {
+
+    body {
+        padding: 8px;
+    }
+
+    .container > div:first-child {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 14px;
+
+        padding: 18px;
+        border-radius: var(--radius-md);
+    }
+
+    .container > div:first-child button {
+        width: 100%;
+    }
+
+    .form-section,
+    .busqueda-section,
+    .turnos-section,
+    .card {
+        padding: 16px;
+    }
+
+    .botones-rapidos {
+        grid-template-columns: 1fr;
+    }
+
+    .botones-rapidos button {
+        width: 100%;
+    }
+
+    #listaTurnos,
+    .visor-doctores,
+    .transito-container {
+        grid-template-columns: 1fr;
+    }
+
+    .card-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .card-header button {
+        width: 100%;
+    }
+
+    .turno-acciones {
+        flex-direction: column;
+    }
+
+    .turno-acciones button {
+        width: 100%;
+    }
+}
     </style>
 </head>
 <body>

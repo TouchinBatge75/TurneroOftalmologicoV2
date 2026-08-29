@@ -186,11 +186,6 @@ def dashboard_doctores():
     # Devuelve doctores con consultorio y enfermero
     pass
 
-@bp.route('/doctores/<int:doctor_id>/actualizar-estado', methods=['PUT'])
-def actualizar_estado_doctor(doctor_id):
-    # Actualiza estatus profesional
-    pass
-
 @bp.route('/turnos/<int:turno_id>/mover', methods=['POST'])
 def mover_turno(turno_id):
     # Mueve entre estaciones
