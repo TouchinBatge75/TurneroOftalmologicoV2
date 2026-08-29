@@ -1,0 +1,1546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Doctor - Sistema de Turnos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .doctor-info {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .btn-logout {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.3);
+        }
+
+        .btn-logout:hover {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.4);
+        }
+
+        .dashboard-content {
+            padding: 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-left: 4px solid #3498db;
+        }
+
+        .card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .turno-item {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-left: 4px solid #2ecc71;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .turno-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+        }
+
+        .turno-item.urgente {
+            border-left-color: #e74c3c;
+            background: #fff5f5;
+        }
+
+        .turno-item.normal {
+            border-left-color: #f39c12;
+        }
+
+        .turno-item.leve {
+            border-left-color: #3498db;
+        }
+
+        .turno-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .turno-numero {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .badge-prioridad {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .badge-alta {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .badge-media {
+            background: #f39c12;
+            color: white;
+        }
+
+        .badge-baja {
+            background: #3498db;
+            color: white;
+        }
+
+        .turno-paciente {
+            color: #34495e;
+            margin-bottom: 5px;
+        }
+
+        .turno-detalles {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .tag {
+            background: #ecf0f1;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+        }
+
+        .tag.sin-cita {
+            background: #ffeaa7;
+            color: #d35400;
+        }
+
+        .tag.con-cita {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+
+        .tag.ya-afiliado {
+            background: #d6eaf8;
+            color: #2980b9;
+        }
+
+        .btn-llamar {
+            background: linear-gradient(135deg, #2ecc71 0%, #1abc9c 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            margin-top: 10px;
+            width: 100%;
+        }
+
+        .btn-llamar:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+        }
+
+        .btn-llamar:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .estado-section {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .btn-estado {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-disponible {
+            background: #2ecc71;
+            color: white;
+        }
+
+        .btn-ocupado {
+            background: #f39c12;
+            color: white;
+        }
+
+        .btn-ausente {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-estado:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-estado.activo {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .consultorio-info {
+            background: linear-gradient(135deg, #3498db 0%, #9b59b6 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* Notificaciones */
+        .notificaciones-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-notificacion {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-align: left;
+        }
+
+        .btn-notificacion:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .notificacion-personalizada {
+            margin-top: 15px;
+        }
+
+        .textarea-mensaje {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            resize: vertical;
+            min-height: 80px;
+            margin-bottom: 10px;
+            font-family: inherit;
+        }
+
+        .btn-enviar-personalizado {
+            background: #9b59b6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+        }
+
+        .btn-enviar-personalizado:hover {
+            background: #8e44ad;
+            transform: translateY(-2px);
+        }
+
+        /* Derivación de pacientes */
+        .derivacion-section {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .destinos-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .btn-destino {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-destino:hover {
+            background: #2980b9;
+            transform: translateY(-2px);
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+        }
+
+        .textarea-notas {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            resize: vertical;
+            min-height: 60px;
+            margin-bottom: 10px;
+        }
+
+        .paciente-actual-card {
+            background: linear-gradient(135deg, #2ecc71 0%, #1abc9c 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .paciente-actual-card.afiliado-espera {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+        }
+
+        .paciente-actual-card.sin-afiliar {
+            background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
+        }
+
+        .sin-turnos {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 40px;
+            font-style: italic;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        /* Contador de turnos */
+        .contador-turnos {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            background: #ecf0f1;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .contador-item {
+            text-align: center;
+            flex: 1;
+        }
+
+        .contador-numero {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .contador-label {
+            font-size: 0.8em;
+            color: #7f8c8d;
+        }
+
+        /* Estadísticas rápidas */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .stat-number {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .btn-logout {
+                position: relative;
+                top: 0;
+                right: 0;
+                margin-top: 15px;
+            }
+            
+            .destinos-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .estado-section {
+                flex-direction: column;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>👨‍⚕️ Dashboard Médico</h1>
+            <div class="doctor-info">
+                <span id="doctor-name">Cargando...</span> - 
+                <span id="consultorio-info">Consultorio: Cargando...</span>
+            </div>
+            <button onclick="cerrarSesion()" class="btn-logout">
+                🚪 Cerrar Sesión
+            </button>
+        </div>
+
+        <div class="dashboard-content">
+            <!-- Columna izquierda: Estado y controles -->
+            <div class="column">
+                <div class="card">
+                    <h3>🎯 Estado Actual</h3>
+                    <div class="estado-section">
+                        <button class="btn-estado btn-disponible" onclick="cambiarEstado('DISPONIBLE')">
+                            ✅ Disponible
+                        </button>
+                        <button class="btn-estado btn-ocupado" onclick="cambiarEstado('OCUPADO')">
+                            ⏳ Ocupado
+                        </button>
+                        <button class="btn-estado btn-ausente" onclick="cambiarEstado('AUSENTE')">
+                            ❌ Ausente
+                        </button>
+                    </div>
+                    
+                    <div class="consultorio-info">
+                        <strong>📍 Consultorio: <span id="consultorio-numero">-</span></strong>
+                    </div>
+
+                    <button class="btn-llamar" onclick="llamarSiguiente()" id="btn-llamar">
+                        📢 Llamar Siguiente Paciente
+                    </button>
+
+                    <!-- Estadísticas rápidas -->
+                    <div class="stats-grid" id="estadisticas-rapidas">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-turnos">0</div>
+                            <div class="stat-label">Total en espera</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="turnos-prioridad-alta">0</div>
+                            <div class="stat-label">Alta prioridad</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>💬 Notificaciones a Recepción</h3>
+                    <div class="notificaciones-grid" id="notificaciones-predefinidas">
+                        <!-- Las notificaciones se cargarán aquí -->
+                    </div>
+                    
+                    <div class="notificacion-personalizada">
+                        <textarea 
+                            class="textarea-mensaje" 
+                            placeholder="Escribe un mensaje personalizado..."
+                            id="mensaje-personalizado"
+                        ></textarea>
+                        <button class="btn-enviar-personalizado" onclick="enviarNotificacionPersonalizada()">
+                            📤 Enviar Mensaje Personalizado
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columna derecha: Lista de turnos y paciente actual -->
+            <div class="column">
+                <div class="card">
+                    <div class="contador-turnos">
+                        <div class="contador-item">
+                            <div class="contador-numero" id="contador-total">0</div>
+                            <div class="contador-label">Total en espera</div>
+                        </div>
+                        <div class="contador-item">
+                            <div class="contador-numero" id="contador-con-cita">0</div>
+                            <div class="contador-label">Con cita</div>
+                        </div>
+                        <div class="contador-item">
+                            <div class="contador-numero" id="contador-sin-cita">0</div>
+                            <div class="contador-label">Sin cita</div>
+                        </div>
+                    </div>
+                    
+                    <h3>📋 Lista de Espera</h3>
+                    <div id="turnos-lista">
+                        <div class="loading">Cargando turnos...</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>👥 Paciente en Atención</h3>
+                    <div id="paciente-actual" class="sin-turnos">
+                        No hay paciente en atención
+                    </div>
+                    
+                    <!-- Botón para finalizar consulta -->
+                    <div style="margin: 15px 0; text-align: center;">
+                        <button class="btn-llamar" onclick="finalizarConsulta()" style="background: #6c757d;">
+                            📝 Finalizar Consulta (Sin Derivaciones)
+                        </button>
+                    </div>
+                    
+                    <div id="mediciones-paciente" style="display: none;">
+                        <h4>📊 Mediciones de Toma de Cálculos:</h4>
+                        <div id="mediciones-content"></div>
+                    </div>
+
+                    <div id="seccion-derivacion" style="display: none;">
+                        <div class="derivacion-section">
+                            <h4>🚀 Derivar Paciente a:</h4>
+                            
+                            <!-- Estudios de Gabinete (con pago) -->
+                            <div style="padding: 15px; background: #fff3cd; border-radius: 8px; border: 1px solid #ffeaa7; margin-bottom: 15px;">
+                                <h4>🔬 Estudios de Gabinete (Requieren Pago)</h4>
+                                <button class="btn-llamar" onclick="derivarAGabinete()" style="background: #ff9800; width: 100%;">
+                                    🔬 Derivar a Estudios de Gabinete
+                                </button>
+                            </div>
+
+                            <!-- Derivaciones sin pago -->
+                            <div style="padding: 15px; background: #e3f2fd; border-radius: 8px; border: 1px solid #bbdefb;">
+                                <h4>📍 Otras Derivaciones</h4>
+                                <div class="destinos-grid">
+                                    <button class="btn-destino" onclick="derivarPaciente('TRABAJO_SOCIAL')">
+                                        🛂 Trabajo Social
+                                    </button>
+                                    <button class="btn-destino" onclick="derivarPaciente('ASESORIA_VISUAL')">
+                                        👓 Asesoría Visual
+                                    </button>
+                                </div>
+                                
+                                <!-- Notas -->
+                                <div style="margin-top: 15px;">
+                                    <textarea 
+                                        class="textarea-notas" 
+                                        placeholder="Notas adicionales..."
+                                        id="notas-derivacion"
+                                    ></textarea>
+                                </div>
+                                
+                                <!-- Botón de confirmación -->
+                                <button class="btn-llamar" onclick="confirmarDerivacion()" style="background: #3498db; margin-top: 10px; width: 100%;">
+                                    ✅ Confirmar Derivación a <span id="destino-seleccionado-texto">[Selecciona destino]</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let doctorId = null;
+        let doctorNombre = null;
+        let consultorioNumero = null;
+        let pacienteActual = null;
+        let destinoSeleccionado = null;
+        let notificacionesPredefinidas = {};
+        let totalEnEspera = 0;
+        let contadores = {
+            total: 0,
+            conCita: 0,
+            sinCita: 0,
+            altaPrioridad: 0,
+            mediaPrioridad: 0,
+            bajaPrioridad: 0
+        };
+
+        // Cargar información al iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🏥 Iniciando dashboard médico...');
+            
+            // Obtener datos de la sesión
+            doctorId = sessionStorage.getItem('doctor_id');
+            doctorNombre = sessionStorage.getItem('doctor_nombre');
+            consultorioNumero = sessionStorage.getItem('consultorio_numero');
+            
+            console.log('📋 Datos de sesión:', { doctorId, doctorNombre, consultorioNumero });
+            
+            // Verificar sesión
+            if (!doctorId) {
+                console.error('No hay sesión activa');
+                alert('No hay sesión activa. Redirigiendo al login...');
+                window.location.href = '/doctor-login';
+                return;
+            }
+            
+            // Mostrar información del doctor
+            document.getElementById('doctor-name').textContent = doctorNombre;
+            document.getElementById('consultorio-info').textContent = `Consultorio: ${consultorioNumero}`;
+            document.getElementById('consultorio-numero').textContent = consultorioNumero;
+            
+            console.log('Dashboard configurado para:', doctorNombre);
+            
+            // Cargar datos iniciales
+            cargarTurnos();
+            cargarPacienteActual();
+            cargarNotificacionesPredefinidas();
+            actualizarEstadoDoctor();
+            actualizarEstadisticas();
+            
+            // Actualizar cada 5 segundos
+            setInterval(() => {
+                cargarTurnos();
+                cargarPacienteActual();
+                actualizarEstadisticas();
+            }, 5000);
+        });
+
+        // Función para cerrar sesión
+        function cerrarSesion() {
+            if (confirm('¿Estás seguro de que quieres cerrar sesión? Esto liberará tu consultorio.')) {
+                fetch('/api/doctor/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        doctor_id: parseInt(doctorId)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Limpiar sessionStorage
+                        sessionStorage.clear();
+                        // Redirigir al login
+                        window.location.href = '/doctor-login';
+                    } else {
+                        alert('Error al cerrar sesión: ' + (data.error || 'Error desconocido'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al conectar con el servidor');
+                });
+            }
+        }
+
+        // Función para cargar turnos en espera (MEJORADA)
+        function cargarTurnos() {
+            if (!doctorId) return;
+            
+            fetch(`/api/doctor/turnos?doctor_id=${doctorId}`)
+                .then(response => response.json())
+                .then(turnos => {
+                    const lista = document.getElementById('turnos-lista');
+                    
+                    // Resetear contadores
+                    contadores = {
+                        total: 0,
+                        conCita: 0,
+                        sinCita: 0,
+                        altaPrioridad: 0,
+                        mediaPrioridad: 0,
+                        bajaPrioridad: 0
+                    };
+                    
+                    if (turnos.length === 0) {
+                        lista.innerHTML = '<div class="sin-turnos">No hay turnos en espera</div>';
+                        actualizarContadores();
+                        return;
+                    }
+                    
+                    lista.innerHTML = turnos.map(turno => {
+                        // Calcular prioridad y clase CSS
+                        let prioridadClase = '';
+                        let prioridadBadge = '';
+                        let prioridadTexto = '';
+                        
+                        // Determinar prioridad según tipo y afiliación
+                        if (turno.tipo === 'CITA') {
+                            prioridadClase = 'urgente';
+                            prioridadBadge = 'badge-alta';
+                            prioridadTexto = 'ALTA';
+                            contadores.altaPrioridad++;
+                            contadores.conCita++;
+                        } else if (turno.tipo === 'SIN_CITA') {
+                            // Verificar en las notas si está afiliado
+                            const notas = turno.notas_adicionales || '';
+                            if (notas.includes('YA AFILIADO')) {
+                                prioridadClase = 'normal';
+                                prioridadBadge = 'badge-media';
+                                prioridadTexto = 'MEDIA';
+                                contadores.mediaPrioridad++;
+                            } else {
+                                prioridadClase = 'leve';
+                                prioridadBadge = 'badge-baja';
+                                prioridadTexto = 'BAJA';
+                                contadores.bajaPrioridad++;
+                            }
+                            contadores.sinCita++;
+                        }
+                        
+                        contadores.total++;
+                        
+                        // Crear etiquetas
+                        let tags = `<span class="tag ${turno.tipo === 'CITA' ? 'con-cita' : 'sin-cita'}">${turno.tipo === 'CITA' ? 'Con Cita' : 'Sin Cita'}</span>`;
+                        
+                        // Verificar si es paciente ya afiliado
+                        if (turno.tipo === 'SIN_CITA') {
+                            const notas = turno.notas_adicionales || '';
+                            if (notas.includes('YA AFILIADO')) {
+                                tags += `<span class="tag ya-afiliado">Ya Afiliado</span>`;
+                            }
+                        }
+                        
+                        // Calcular tiempo de espera
+                        const tiempoCreacion = new Date(turno.timestamp_creacion);
+                        const ahora = new Date();
+                        const minutosEspera = Math.floor((ahora - tiempoCreacion) / (1000 * 60));
+                        
+                        return `
+                            <div class="turno-item ${prioridadClase}" onclick="seleccionarTurno(${turno.id})">
+                                <div class="turno-header">
+                                    <span class="turno-numero">${turno.numero}</span>
+                                    <span class="badge-prioridad ${prioridadBadge}">${prioridadTexto}</span>
+                                </div>
+                                <div class="turno-paciente">
+                                    <strong>${turno.paciente_nombre}</strong> (${turno.paciente_edad} años)
+                                </div>
+                                <div class="turno-detalles">
+                                    ${tags}
+                                    <span class="tag">⏱️ ${minutosEspera} min</span>
+                                    ${turno.estacion_actual_nombre ? `<span class="tag">📍 ${turno.estacion_actual_nombre}</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    
+                    // Actualizar contadores
+                    actualizarContadores();
+                    
+                })
+                .catch(error => {
+                    console.error('Error cargando turnos:', error);
+                    document.getElementById('turnos-lista').innerHTML = 
+                        '<div class="sin-turnos">Error cargando turnos</div>';
+                });
+        }
+
+        // Función para seleccionar un turno de la lista
+        function seleccionarTurno(turnoId) {
+            // Aquí puedes implementar lógica para ver detalles del turno
+            console.log('Turno seleccionado:', turnoId);
+            
+            // Opcional: Mostrar detalles en un modal
+            mostrarDetallesTurno(turnoId);
+        }
+
+        // Función para mostrar detalles de un turno
+        function mostrarDetallesTurno(turnoId) {
+            // Aquí puedes implementar un modal con detalles del turno
+            alert(`Detalles del turno ${turnoId}\n\nEsta función puede mostrar:\n• Información completa del paciente\n• Historial médico\n• Notas adicionales\n• Mediciones previas`);
+        }
+
+        // Función para actualizar contadores
+        function actualizarContadores() {
+            document.getElementById('contador-total').textContent = contadores.total;
+            document.getElementById('contador-con-cita').textContent = contadores.conCita;
+            document.getElementById('contador-sin-cita').textContent = contadores.sinCita;
+            
+            // Actualizar estadísticas rápidas
+            document.getElementById('total-turnos').textContent = contadores.total;
+            document.getElementById('turnos-prioridad-alta').textContent = contadores.altaPrioridad;
+        }
+
+        // Función para cargar paciente en atención
+        function cargarPacienteActual() {
+            if (!doctorId) return;
+            
+            fetch(`/api/doctor/paciente-actual?doctor_id=${doctorId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const contenedor = document.getElementById('paciente-actual');
+                    const seccionDerivacion = document.getElementById('seccion-derivacion');
+                    const medicionesContainer = document.getElementById('mediciones-paciente');
+                    
+                    if (data.paciente) {
+                        pacienteActual = data.paciente;
+                        
+                        // Determinar clase CSS según tipo de paciente
+                        let clasePaciente = '';
+                        if (data.paciente.tipo === 'CITA') {
+                            clasePaciente = '';
+                        } else if (data.paciente.tipo === 'SIN_CITA') {
+                            const notas = data.paciente.notas_adicionales || '';
+                            if (notas.includes('YA AFILIADO')) {
+                                clasePaciente = 'afiliado-espera';
+                            } else {
+                                clasePaciente = 'sin-afiliar';
+                            }
+                        }
+                        
+                        const tiempoAtencion = data.paciente.timestamp_atencion ? 
+                            new Date(data.paciente.timestamp_atencion).toLocaleTimeString() : 
+                            'Recién llamado';
+                        
+                        contenedor.innerHTML = `
+                            <div class="paciente-actual-card ${clasePaciente}">
+                                <div class="turno-header">
+                                    <span class="turno-numero">${data.paciente.numero}</span>
+                                    ${data.paciente.tipo === 'CITA' ? 
+                                        '<span class="badge-prioridad badge-alta">CON CITA</span>' : 
+                                        data.paciente.notas_adicionales && data.paciente.notas_adicionales.includes('YA AFILIADO') ?
+                                        '<span class="badge-prioridad badge-media">YA AFILIADO</span>' :
+                                        '<span class="badge-prioridad badge-baja">SIN AFILIAR</span>'
+                                    }
+                                </div>
+                                <div class="turno-paciente">
+                                    <strong>${data.paciente.paciente_nombre}</strong> (${data.paciente.paciente_edad} años)
+                                </div>
+                                <div class="turno-detalles" style="color: white; opacity: 0.9;">
+                                    Tipo: ${data.paciente.tipo} | En atención desde: ${tiempoAtencion}
+                                    ${data.paciente.notas_adicionales && data.paciente.notas_adicionales.includes('AFILIADO') ? 
+                                        '<br><small>✍️ Paciente recientemente afiliado en Trabajo Social</small>' : ''
+                                    }
+                                </div>
+                            </div>
+                        `;
+                        seccionDerivacion.style.display = 'block';
+                        cargarMedicionesPaciente(data.paciente.id);
+                    } else {
+                        pacienteActual = null;
+                        contenedor.innerHTML = '<div class="sin-turnos">No hay paciente en atención</div>';
+                        seccionDerivacion.style.display = 'none';
+                        medicionesContainer.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cargando paciente actual:', error);
+                });
+        }
+
+        // Función para cargar estadísticas del doctor
+        function actualizarEstadisticas() {
+            if (!doctorId) return;
+            
+            // Podrías agregar una API para estadísticas específicas del doctor
+            // Por ahora solo usamos los contadores de la lista de espera
+        }
+
+        // Función para cargar notificaciones predefinidas
+        function cargarNotificacionesPredefinidas() {
+            fetch('/api/doctor/notificaciones/predefinidas')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        notificacionesPredefinidas = data.notificaciones;
+                        const contenedor = document.getElementById('notificaciones-predefinidas');
+                        
+                        contenedor.innerHTML = Object.entries(data.notificaciones).map(([key, mensaje]) => `
+                            <button class="btn-notificacion" onclick="enviarNotificacionPredefinida('${key}')">
+                                ${mensaje}
+                            </button>
+                        `).join('');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cargando notificaciones:', error);
+                });
+        }
+
+        // Función para cargar mediciones del paciente actual
+        function cargarMedicionesPaciente(turnoId) {
+            if (!turnoId) return;
+            
+            fetch(`/api/mediciones/${turnoId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const medicionesContainer = document.getElementById('mediciones-paciente');
+                    const medicionesContent = document.getElementById('mediciones-content');
+                    
+                    if (data.mediciones) {
+                        medicionesContent.innerHTML = `
+                            <div style="background: white; padding: 15px; border-radius: 8px; margin-top: 10px;">
+                                <strong>👁️ Agudeza Visual:</strong> 
+                                ${data.mediciones.agudeza_visual_od || 'N/A'} OD / 
+                                ${data.mediciones.agudeza_visual_oi || 'N/A'} OI<br>
+                                
+                                <strong>📊 Presión Intraocular:</strong> 
+                                ${data.mediciones.presion_intraocular_od || 'N/A'} OD / 
+                                ${data.mediciones.presion_intraocular_oi || 'N/A'} OI<br>
+                                
+                                <strong>🔍 Queratometría:</strong> 
+                                ${data.mediciones.queratometria_od || 'N/A'} OD / 
+                                ${data.mediciones.queratometria_oi || 'N/A'} OI<br>
+                                
+                                <strong>👓 Refracción:</strong> 
+                                ${data.mediciones.refraccion_od || 'N/A'} OD / 
+                                ${data.mediciones.refraccion_oi || 'N/A'} OI<br>
+                                
+                                ${data.mediciones.observaciones ? 
+                                    `<strong>📝 Observaciones:</strong> ${data.mediciones.observaciones}<br>` : ''}
+                                
+                                ${data.mediciones.atendido_por ? 
+                                    `<strong>👤 Atendido por:</strong> ${data.mediciones.atendido_por}<br>` : ''}
+                                    
+                                <small style="color: #7f8c8d;">
+                                    📅 ${new Date(data.mediciones.timestamp).toLocaleString()}
+                                </small>
+                            </div>
+                        `;
+                        medicionesContainer.style.display = 'block';
+                    } else {
+                        medicionesContainer.style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error cargando mediciones:', error);
+                    document.getElementById('mediciones-paciente').style.display = 'none';
+                });
+        }
+
+        // Función para llamar siguiente paciente
+        function llamarSiguiente() {
+            const btn = document.getElementById('btn-llamar');
+            btn.disabled = true;
+            btn.textContent = '⏳ Llamando...';
+            
+            fetch('/api/doctor/llamar-siguiente', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    doctor_id: parseInt(doctorId)
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion(`📢 Llamando a: ${data.turno.numero} - ${data.turno.paciente_nombre}`);
+                    cargarTurnos();
+                    cargarPacienteActual();
+                } else {
+                    alert(data.error || 'Error al llamar paciente');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al conectar con el servidor');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '📢 Llamar Siguiente Paciente';
+            });
+        }
+
+        // Función para cambiar estado del doctor
+        function cambiarEstado(estado) {
+            fetch('/api/doctor/cambiar-estado', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    doctor_id: parseInt(doctorId),
+                    estado: estado
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Actualizar botones visualmente
+                    document.querySelectorAll('.btn-estado').forEach(btn => {
+                        btn.classList.remove('activo');
+                    });
+                    event.target.classList.add('activo');
+                    
+                    let mensaje = '';
+                    switch(estado) {
+                        case 'DISPONIBLE':
+                            mensaje = '✅ Estado actualizado: Disponible';
+                            break;
+                        case 'OCUPADO':
+                            mensaje = '⏳ Estado actualizado: Ocupado';
+                            break;
+                        case 'AUSENTE':
+                            mensaje = '❌ Estado actualizado: Ausente';
+                            break;
+                    }
+                    
+                    mostrarNotificacion(mensaje);
+                } else {
+                    alert('Error al cambiar estado: ' + (data.error || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al conectar con el servidor');
+            });
+        }
+
+        // Función para enviar notificación predefinida
+        function enviarNotificacionPredefinida(tipo) {
+            const mensaje = notificacionesPredefinidas[tipo];
+            
+            fetch('/api/doctor/notificar-recepcion', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    doctor_id: parseInt(doctorId),
+                    doctor_nombre: doctorNombre,
+                    consultorio: consultorioNumero,
+                    mensaje: mensaje,
+                    tipo: tipo
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion('✅ Notificación enviada a recepción');
+                } else {
+                    alert('Error: ' + (data.error || 'Error enviando notificación'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al conectar con el servidor');
+            });
+        }
+
+        // Función para enviar notificación personalizada
+        function enviarNotificacionPersonalizada() {
+            const mensaje = document.getElementById('mensaje-personalizado').value.trim();
+            
+            if (!mensaje) {
+                alert('Por favor escribe un mensaje');
+                return;
+            }
+            
+            fetch('/api/doctor/notificacion-personalizada', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    doctor_id: parseInt(doctorId),
+                    doctor_nombre: doctorNombre,
+                    consultorio: consultorioNumero,
+                    mensaje: mensaje
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion('✅ Mensaje personalizado enviado');
+                    document.getElementById('mensaje-personalizado').value = '';
+                } else {
+                    alert('Error: ' + (data.error || 'Error enviando mensaje'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al conectar con el servidor');
+            });
+        }
+
+        // Función para derivar paciente
+        function derivarPaciente(destino) {
+            destinoSeleccionado = destino;
+            
+            console.log('Destino seleccionado:', destino); // Para debug
+            
+            // Actualizar texto del botón
+            let textoDestino = '';
+            switch(destino) {
+                case 'TRABAJO_SOCIAL': textoDestino = 'Trabajo Social'; break;
+                case 'ASESORIA_VISUAL': textoDestino = 'Asesoría Visual'; break;
+            }
+            
+            document.getElementById('destino-seleccionado-texto').textContent = textoDestino;
+            
+            // Resaltar botón seleccionado
+            document.querySelectorAll('.btn-destino').forEach(btn => {
+                btn.style.background = '#3498db';
+                btn.style.border = 'none';
+            });
+            
+            // Encontrar y resaltar el botón que se clickeó
+            const botones = document.querySelectorAll('.btn-destino');
+            for (let btn of botones) {
+                if (btn.textContent.includes(textoDestino)) {
+                    btn.style.background = '#2980b9';
+                    btn.style.border = '2px solid #1a5276';
+                    break;
+                }
+            }
+        }
+
+        // Función para derivar a estudios de gabinete
+        function derivarAGabinete() {
+            console.log('Iniciando derivacion a gabinete...');
+            
+            // Verificamos que haya un paciente en atencion
+            if (!pacienteActual || !pacienteActual.id) {
+                alert('No hay paciente en atencion');
+                console.error('No hay pacienteActual:', pacienteActual);
+                return;
+            }
+            
+            console.log('Paciente actual:', pacienteActual);
+            
+            // Muestra un modal para que el doctor seleccione los estudios
+            mostrarModalSeleccionEstudios();
+        }
+
+        // Función para finalizar consulta 
+        function finalizarConsulta() {
+            if (!pacienteActual) {
+                alert('No hay paciente en atención');
+                return;
+            }
+
+            if (confirm('¿Finalizar consulta y dar por terminada la atención?\n\nEl paciente podrá retirarse del sistema.')) {
+                fetch('/api/doctor/derivar-paciente', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        turno_id: pacienteActual.id,
+                        destino: 'SALIDA',
+                        vuelve_conmigo: false,
+                        notas: 'Consulta finalizada - Alta médica'
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        mostrarNotificacion('✅ Consulta finalizada. Paciente dado de alta.');
+                        
+                        // Limpiar interfaz
+                        limpiarInterfazPaciente();
+                        
+                    } else {
+                        alert('Error: ' + (data.error || 'Error finalizando consulta'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error al conectar con el servidor');
+                });
+            }
+        }
+
+        // Función auxiliar para limpiar la interfaz
+        function limpiarInterfazPaciente() {
+            pacienteActual = null;
+            destinoSeleccionado = null;
+            
+            // Limpiar UI
+            document.getElementById('seccion-derivacion').style.display = 'none';
+            document.getElementById('mediciones-paciente').style.display = 'none';
+            document.getElementById('paciente-actual').innerHTML = '<div class="sin-turnos">No hay paciente en atención</div>';
+            document.getElementById('notas-derivacion').value = '';
+            document.getElementById('destino-seleccionado-texto').textContent = '[Selecciona destino]';
+            
+            // Resetear botones de destino
+            document.querySelectorAll('.btn-destino').forEach(btn => {
+                btn.style.background = '#3498db';
+                btn.style.border = 'none';
+            });
+            
+            // Recargar datos
+            cargarTurnos();
+        }
+
+        // Función para actualizar estado del doctor
+        function actualizarEstadoDoctor() {
+            // Por defecto, marcar como disponible
+            document.querySelector('.btn-disponible').classList.add('activo');
+        }
+
+        // Función auxiliar para mostrar notificaciones
+        function mostrarNotificacion(mensaje) {
+            const notificacion = document.createElement('div');
+            notificacion.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #2ecc71;
+                color: white;
+                padding: 15px 25px;
+                border-radius: 8px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                z-index: 1000;
+                font-weight: 600;
+            `;
+            notificacion.textContent = mensaje;
+            document.body.appendChild(notificacion);
+            
+            setTimeout(() => {
+                document.body.removeChild(notificacion);
+            }, 3000);
+        }
+
+        function mostrarModalSeleccionEstudios() {
+            // Creamos el modal con HTML dinámico
+            const modalHTML = `
+                <div id="modal-estudios" style="
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0,0,0,0.5);
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    z-index: 10000;
+                ">
+                    <div style="
+                        background: white;
+                        padding: 30px;
+                        border-radius: 15px;
+                        width: 90%;
+                        max-width: 500px;
+                        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+                    ">
+                        <h3 style="margin-bottom: 20px; color: #2c3e50;">Estudios de Gabinete</h3>
+                        
+                        <p style="margin-bottom: 15px; color: #7f8c8d;">
+                            <strong>Selecciona los estudios prioritarios:</strong><br>
+                            <small>El paciente <strong style="color: #e74c3c;">DEBE regresar</strong> con estos estudios para continuar la evaluación.</small>
+                        </p>
+                        
+                        <!-- Lista de estudios disponibles -->
+                        <div id="lista-estudios" style="margin-bottom: 20px;">
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" name="estudio" value="Agudeza Visual" checked>
+                                    <span>Agudeza Visual</span>
+                                </label>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" name="estudio" value="Presion Intraocular" checked>
+                                    <span>Presion Intraocular</span>
+                                </label>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" name="estudio" value="Queratometria">
+                                    <span>Queratometria</span>
+                                </label>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" name="estudio" value="Tonotometria">
+                                    <span>Tonotometria</span>
+                                </label>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" name="estudio" value="Calculo de LIO">
+                                    <span>Calculo de LIO</span>
+                                </label>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label style="display: flex; align-items: center; gap: 10px;">
+                                    <input type="checkbox" name="estudio" value="Refraccion">
+                                    <span>Refraccion</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Informacion para el doctor -->
+                        <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
+                            <strong>Informacion:</strong><br>
+                            <small>
+                                • Estudios <strong>marcados</strong>: Paciente DEBE regresar con ellos<br>
+                                • Estudios <strong>no marcados</strong>: Opcionales (paciente puede saltarselos)<br>
+                                • En Recepcion podran ajustar segun disponibilidad economica
+                            </small>
+                        </div>
+                        
+                        <!-- Botones de accion -->
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button onclick="cerrarModalEstudios()" style="
+                                padding: 10px 20px;
+                                border: 1px solid #bdc3c7;
+                                background: white;
+                                border-radius: 8px;
+                                cursor: pointer;
+                            ">
+                                Cancelar
+                            </button>
+                            <button onclick="confirmarEstudios()" style="
+                                padding: 10px 20px;
+                                background: #3498db;
+                                color: white;
+                                border: none;
+                                border-radius: 8px;
+                                cursor: pointer;
+                                font-weight: bold;
+                            ">
+                                Confirmar Estudios
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Insertamos el modal en el body
+            document.body.insertAdjacentHTML('beforeend', modalHTML);
+        }
+
+        // Funcion para cerrar el modal de estudios
+        function cerrarModalEstudios() {
+            const modal = document.getElementById('modal-estudios');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        // Funcion que se ejecuta cuando el doctor confirma los estudios seleccionados
+        function confirmarEstudios() {
+            // Obtenemos todos los checkboxes que estan marcados
+            const checkboxes = document.querySelectorAll('#modal-estudios input[type="checkbox"]:checked');
+            
+            // Convertimos a un array con los valores (nombres de los estudios)
+            const estudiosSeleccionados = Array.from(checkboxes).map(cb => cb.value);
+            
+            // Validamos que haya seleccionado al menos un estudio
+            if (estudiosSeleccionados.length === 0) {
+                alert('Por favor selecciona al menos un estudio prioritario');
+                return;
+            }
+            
+            console.log('Estudios prioritarios seleccionados:', estudiosSeleccionados);
+            
+            // Cerramos el modal
+            cerrarModalEstudios();
+            
+            // Mostramos confirmacion final antes de enviar
+            if (confirm(`¿Derivar paciente a Gabinete con ${estudiosSeleccionados.length} estudio(s) prioritario(s)?\n\nEstudios: ${estudiosSeleccionados.join(', ')}\n\nEl paciente pasara por Recepcion para pago antes de ir a Gabinete.`)) {
+                enviarDerivacionAGabinete(estudiosSeleccionados);
+            }
+        }
+
+        // Funcion que envia los datos al servidor para derivar a gabinete
+        function enviarDerivacionAGabinete(estudios) {
+            console.log('Enviando datos a gabinete:', {
+                turno_id: pacienteActual.id,
+                estudios: estudios,
+                vuelve_conmigo: true
+            });
+            
+            // Hacemos la peticion al servidor
+            fetch(`/api/turnos/${pacienteActual.id}/derivar-estudios`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    estudios: estudios,
+                    vuelve_conmigo: true
+                })
+            })
+            .then(response => {
+                console.log('Respuesta status:', response.status);
+                // Si hay error HTTP, lo manejamos
+                if (!response.ok) {
+                    throw new Error('Error HTTP: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Respuesta data:', data);
+                if (data.success) {
+                    // Si todo sale bien, mostramos notificacion
+                    mostrarNotificacion(`Paciente derivado a Gabinete con ${estudios.length} estudio(s) prioritario(s). Debe pasar por Recepcion para pago.`);
+                    
+                    console.log('Actualizando dashboard automaticamente...');
+                    
+                    // Limpiamos la interfaz porque el paciente ya no esta en atencion
+                    pacienteActual = null;
+                    document.getElementById('paciente-actual').innerHTML = '<div class="sin-turnos">No hay paciente en atencion</div>';
+                    
+                    // Ocultamos la seccion de derivacion
+                    document.getElementById('seccion-derivacion').style.display = 'none';
+                    
+                    // Recargamos la lista de turnos en espera
+                    cargarTurnos();
+                    
+                    // Forzamos recarga del paciente actual por si acaso
+                    setTimeout(() => {
+                        cargarPacienteActual();
+                    }, 500);
+                    
+                    console.log('Dashboard actualizado automaticamente');
+                    
+                } else {
+                    // Si hay error del servidor, lo mostramos
+                    alert('Error al derivar paciente: ' + (data.error || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error completo:', error);
+                alert('Error de conexion: ' + error.message);
+            });
+        }
+
+        // Funcion para confirmar derivacion a otros destinos (Trabajo Social, Asesoria Visual)
+        function confirmarDerivacion() {
+            if (!destinoSeleccionado) {
+                alert('Por favor selecciona un destino primero');
+                return;
+            }
+            
+            if (!pacienteActual) {
+                alert('No hay paciente en atencion');
+                return;
+            }
+            
+            const notas = document.getElementById('notas-derivacion').value;
+            
+            fetch('/api/doctor/derivar-paciente', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    turno_id: pacienteActual.id,
+                    destino: destinoSeleccionado,
+                    vuelve_conmigo: false,
+                    notas: notas
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    mostrarNotificacion(`Paciente derivado a ${destinoSeleccionado} exitosamente`);
+                    limpiarInterfazPaciente();
+                } else {
+                    alert('Error: ' + (data.error || 'Error derivando paciente'));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al conectar con el servidor');
+            });
+        }
+    </script>
+</body>
+</html>
