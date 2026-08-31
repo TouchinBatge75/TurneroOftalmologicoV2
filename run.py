@@ -1,6 +1,8 @@
 # run.py
 from app import create_app
 
+from app.seed import seed_all
+
 # Crear la aplicación
 app = create_app()
 

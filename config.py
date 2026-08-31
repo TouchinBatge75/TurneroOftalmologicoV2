@@ -1,26 +1,29 @@
-# config.py
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Config:
-    SECRET_KEY = os.getenv('SECRET_KEY')
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///turnero.db')
+    SECRET_KEY = os.getenv(
+        'SECRET_KEY',
+        'clave-desarrollo-temporal'
+    )
+
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    
-    # Estaciones 
+
     ESTACIONES = {
         1: 'Recepción',
-        2: 'Trabajo Social',      # Solo para NO afiliados
-        3: 'Gabinete',            # Incluye: Toma de Cálculos + Estudios
-        4: 'Consulta Médica',     # Doctores
-        5: 'Farmacia',            # Recetas
-        6: 'Asesoría Visual',     # Lentes/armazones
-        7: 'Salida'               # Final
+        2: 'Trabajo Social',
+        3: 'Gabinete',
+        4: 'Consulta Médica',
+        5: 'Farmacia',
+        6: 'Asesoría Visual',
+        7: 'Salida'
     }
-    
-    # Sub-estaciones dentro de Gabinete
+
     SUBESTACIONES_GABINETE = {
         'TOMA_CALCULOS': 'Toma de Cálculos',
         'AGUDEZA_VISUAL': 'Agudeza Visual',

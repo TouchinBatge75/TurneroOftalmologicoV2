@@ -1,28 +1,32 @@
-# app/__init__.py
 from flask import Flask, render_template
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+from config import Config
 
 db = SQLAlchemy()
+migrate = Migrate()
 
 
 def create_app():
-    """Factory de Flask - VERSIÓN SIMPLIFICADA"""
+    """Factory de Flask"""
 
-    app = Flask(__name__, template_folder='../templates')
+    app = Flask(
+        __name__,
+        template_folder='../templates'
+    )
 
     # =========================
     # CONFIGURACIÓN
     # =========================
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///turnero.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = 'clave-secreta-temporal'
+    app.config.from_object(Config)
 
     # =========================
-    # INICIALIZAR SQLALCHEMY
+    # INICIALIZAR EXTENSIONES
     # =========================
     db.init_app(app)
+    migrate.init_app(app, db)
 
-    # Importar modelos DESPUÉS de inicializar db
+    # Importar modelos después de inicializar db
     from app import models
 
     # =========================
@@ -58,12 +62,5 @@ def create_app():
     @app.route('/trabajo-social')
     def trabajo_social():
         return render_template('trabajo_social_dashboard.html')
-
-    # =========================
-    # CREAR TABLAS
-    # =========================
-    with app.app_context():
-        db.create_all()
-        print("✅ Tablas creadas en la base de datos")
 
     return app
