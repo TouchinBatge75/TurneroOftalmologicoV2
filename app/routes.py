@@ -14,7 +14,8 @@ from app.models import (
     Area,
     Servicio,
     HistorialTurno,
-    Cita
+    Cita,
+    Sede
 )
 
 
@@ -150,7 +151,61 @@ def nombre_completo_paciente(paciente):
         if parte and parte.strip()
     )
 
+def obtener_sede_desde_query():
+    sede_id = request.args.get(
+        'sede_id'
+    )
 
+    if not sede_id:
+        return None, (
+            jsonify({
+                'success': False,
+                'error': 'sede_id es requerido'
+            }),
+            400
+        )
+
+    try:
+        sede_id = int(
+            sede_id
+        )
+
+    except (
+        TypeError,
+        ValueError
+    ):
+        return None, (
+            jsonify({
+                'success': False,
+                'error': 'sede_id no es válido'
+            }),
+            400
+        )
+
+    sede = db.session.get(
+        Sede,
+        sede_id
+    )
+
+    if not sede:
+        return None, (
+            jsonify({
+                'success': False,
+                'error': 'Sede no encontrada'
+            }),
+            404
+        )
+
+    if not sede.activo:
+        return None, (
+            jsonify({
+                'success': False,
+                'error': 'La sede está inactiva'
+            }),
+            400
+        )
+
+    return sede, None
 # =====================================================
 # API / PRUEBAS
 # =====================================================
@@ -1453,22 +1508,62 @@ def get_turnos():
 @bp.route('/trabajo-social/turnos', methods=['GET'])
 def trabajo_social_turnos():
     try:
-        area = Area.query.filter_by(
-            codigo='TRABAJO_SOCIAL',
-            activo=True
-        ).first()
+        # =============================================
+        # 1. VALIDAR SEDE
+        # =============================================
+
+        sede, error_sede = (
+            obtener_sede_desde_query()
+        )
+
+        if error_sede:
+            return error_sede
+
+        # =============================================
+        # 2. BUSCAR ÁREA DE TRABAJO SOCIAL
+        # =============================================
+
+        area = (
+            Area.query
+            .filter_by(
+                codigo='TRABAJO_SOCIAL',
+                activo=True
+            )
+            .first()
+        )
 
         if not area:
             return jsonify({
                 'success': False,
-                'message': 'No se encontró el área de Trabajo Social'
+                'message': (
+                    'No se encontró el área '
+                    'de Trabajo Social'
+                )
             }), 404
+
+        # =============================================
+        # 3. BUSCAR TURNOS DE ESTA SEDE
+        # =============================================
 
         turnos = (
             TurnoArea.query
+            .join(
+                Atencion,
+                TurnoArea.atencion_id
+                == Atencion.id
+            )
             .filter(
-                TurnoArea.area_id == area.id,
-                TurnoArea.estado.in_(['ESPERA', 'LLAMADO', 'EN_ATENCION'])
+                TurnoArea.area_id
+                == area.id,
+
+                Atencion.sede_id
+                == sede.id,
+
+                TurnoArea.estado.in_([
+                    'ESPERA',
+                    'LLAMADO',
+                    'EN_ATENCION'
+                ])
             )
             .order_by(
                 TurnoArea.prioridad_manual.desc(),
@@ -1477,11 +1572,19 @@ def trabajo_social_turnos():
             .all()
         )
 
+        # =============================================
+        # 4. ARMAR RESPUESTA
+        # =============================================
+
         resultado = []
 
         for turno in turnos:
             atencion = turno.atencion
-            paciente = atencion.paciente if atencion else None
+
+            if not atencion:
+                continue
+
+            paciente = atencion.paciente
 
             resultado.append({
                 'id': turno.id,
@@ -1489,23 +1592,36 @@ def trabajo_social_turnos():
                 'estado': turno.estado,
                 'tipo_prioridad': turno.tipo_prioridad,
                 'veces_omitido': turno.veces_omitido,
+
                 'fecha_entrada_cola': (
                     turno.fecha_entrada_cola.isoformat()
-                    if turno.fecha_entrada_cola else None
+                    if turno.fecha_entrada_cola
+                    else None
                 ),
 
                 'atencion': {
                     'id': atencion.id,
                     'folio': atencion.folio,
+                    'sede_id': atencion.sede_id,
                     'tipo_llegada': atencion.tipo_llegada,
-                    'afiliado_al_llegar': atencion.afiliado_al_llegar,
-                    'nombre_paciente': atencion.nombre_paciente
-                } if atencion else None,
+                    'afiliado_al_llegar': (
+                        atencion.afiliado_al_llegar
+                    ),
+                    'nombre_paciente': (
+                        atencion.nombre_paciente
+                    )
+                },
 
                 'paciente': {
                     'id': paciente.id,
-                    'nombre_completo': nombre_completo_paciente(paciente),
-                    'numero_afiliacion': paciente.numero_afiliacion,
+                    'nombre_completo': (
+                        nombre_completo_paciente(
+                            paciente
+                        )
+                    ),
+                    'numero_afiliacion': (
+                        paciente.numero_afiliacion
+                    ),
                     'afiliado': paciente.afiliado,
                     'telefono': paciente.telefono
                 } if paciente else None
@@ -1513,11 +1629,15 @@ def trabajo_social_turnos():
 
         return jsonify({
             'success': True,
+
+            'sede': sede.to_dict(),
+
             'area': {
                 'id': area.id,
                 'codigo': area.codigo,
                 'nombre': area.nombre
             },
+
             'total': len(resultado),
             'turnos': resultado
         })
@@ -1525,7 +1645,10 @@ def trabajo_social_turnos():
     except Exception as e:
         return jsonify({
             'success': False,
-            'message': 'Error al consultar la cola de Trabajo Social',
+            'message': (
+                'Error al consultar la cola '
+                'de Trabajo Social'
+            ),
             'error': str(e)
         }), 500
 
@@ -1838,7 +1961,18 @@ def trabajo_social_afiliar(turno_id):
 def caja_turnos():
     try:
         # =============================================
-        # 1. BUSCAR EL ÁREA DE CAJA
+        # 1. VALIDAR SEDE
+        # =============================================
+
+        sede, error_sede = (
+            obtener_sede_desde_query()
+        )
+
+        if error_sede:
+            return error_sede
+
+        # =============================================
+        # 2. BUSCAR EL ÁREA DE CAJA
         # =============================================
 
         area_caja = (
@@ -1853,17 +1987,29 @@ def caja_turnos():
         if not area_caja:
             return jsonify({
                 'success': False,
-                'error': 'No se encontró el área de Caja'
+                'error': (
+                    'No se encontró el área de Caja'
+                )
             }), 404
 
         # =============================================
-        # 2. BUSCAR PACIENTES ACTIVOS EN CAJA
+        # 3. BUSCAR TURNOS ACTIVOS DE ESTA SEDE
         # =============================================
 
         turnos = (
             TurnoArea.query
+            .join(
+                Atencion,
+                TurnoArea.atencion_id
+                == Atencion.id
+            )
             .filter(
-                TurnoArea.area_id == area_caja.id,
+                TurnoArea.area_id
+                == area_caja.id,
+
+                Atencion.sede_id
+                == sede.id,
+
                 TurnoArea.estado.in_([
                     'ESPERA',
                     'LLAMADO',
@@ -1880,7 +2026,7 @@ def caja_turnos():
         resultado = []
 
         # =============================================
-        # 3. ARMAR INFORMACIÓN DE CADA PACIENTE
+        # 4. ARMAR INFORMACIÓN DE CADA PACIENTE
         # =============================================
 
         for turno in turnos:
@@ -1923,11 +2069,17 @@ def caja_turnos():
                         atencion_servicio.id
                     ),
 
-                    'servicio_id': servicio.id,
+                    'servicio_id': (
+                        servicio.id
+                    ),
 
-                    'codigo': servicio.codigo,
+                    'codigo': (
+                        servicio.codigo
+                    ),
 
-                    'nombre': servicio.nombre,
+                    'nombre': (
+                        servicio.nombre
+                    ),
 
                     'estado': (
                         atencion_servicio.estado
@@ -1955,7 +2107,9 @@ def caja_turnos():
                     turno.numero_turno
                 ),
 
-                'estado': turno.estado,
+                'estado': (
+                    turno.estado
+                ),
 
                 'tipo_prioridad': (
                     turno.tipo_prioridad
@@ -1970,6 +2124,7 @@ def caja_turnos():
                 'atencion': {
                     'id': atencion.id,
                     'folio': atencion.folio,
+                    'sede_id': atencion.sede_id,
                     'tipo_llegada': (
                         atencion.tipo_llegada
                     ),
@@ -1980,26 +2135,35 @@ def caja_turnos():
 
                 'paciente': {
                     'id': paciente.id,
+
                     'nombre_completo': (
                         nombre_completo_paciente(
                             paciente
                         )
                     ),
+
                     'numero_afiliacion': (
                         paciente.numero_afiliacion
                     ),
-                    'afiliado': paciente.afiliado
+
+                    'afiliado': (
+                        paciente.afiliado
+                    )
                 } if paciente else None,
 
                 'servicios': servicios
             })
 
         # =============================================
-        # 4. RESPUESTA
+        # 5. RESPUESTA
         # =============================================
 
         return jsonify({
             'success': True,
+
+            'sede': (
+                sede.to_dict()
+            ),
 
             'area': {
                 'id': area_caja.id,
@@ -2007,9 +2171,13 @@ def caja_turnos():
                 'nombre': area_caja.nombre
             },
 
-            'total': len(resultado),
+            'total': (
+                len(resultado)
+            ),
 
-            'turnos': resultado
+            'turnos': (
+                resultado
+            )
         })
 
     except Exception as e:
@@ -2017,500 +2185,7 @@ def caja_turnos():
             'success': False,
             'error': str(e)
         }), 500
-@bp.route(
-    '/caja/<int:turno_id>/enviar',
-    methods=['POST']
-)
-def caja_enviar(turno_id):
-    try:
-        # =============================================
-        # 1. BUSCAR TURNO ACTUAL
-        # =============================================
 
-        turno_caja = db.session.get(
-            TurnoArea,
-            turno_id
-        )
-
-        if not turno_caja:
-            return jsonify({
-                'success': False,
-                'error': 'Turno no encontrado'
-            }), 404
-
-        # =============================================
-        # 2. VALIDAR QUE REALMENTE ESTÉ EN CAJA
-        # =============================================
-
-        if (
-            not turno_caja.area
-            or turno_caja.area.codigo != 'CAJA'
-        ):
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El turno no pertenece a Caja'
-                )
-            }), 400
-
-        if turno_caja.estado == 'FINALIZADO':
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El turno de Caja '
-                    'ya está finalizado'
-                )
-            }), 400
-
-        # =============================================
-        # 3. OBTENER ATENCIÓN
-        # =============================================
-
-        atencion = turno_caja.atencion
-
-        if not atencion:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'La atención no fue encontrada'
-                )
-            }), 404
-
-        # =============================================
-        # 4. DATOS RECIBIDOS
-        # =============================================
-
-        data = request.get_json(
-            silent=True
-        ) or {}
-
-        atencion_servicio_id = data.get(
-            'atencion_servicio_id'
-        )
-
-        usuario = (
-            data.get('usuario')
-            or 'caja'
-        )
-
-        # Es importante distinguir entre:
-        #
-        # pagado = false
-        # y
-        # no enviaron "pagado"
-        if 'pagado' not in data:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'Debe indicar si el servicio '
-                    'fue pagado o no'
-                )
-            }), 400
-
-        pagado = data.get(
-            'pagado'
-        )
-
-        if not isinstance(
-            pagado,
-            bool
-        ):
-            return jsonify({
-                'success': False,
-                'error': (
-                    'pagado debe ser '
-                    'true o false'
-                )
-            }), 400
-
-        if not atencion_servicio_id:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'atencion_servicio_id '
-                    'es requerido'
-                )
-            }), 400
-
-        try:
-            atencion_servicio_id = int(
-                atencion_servicio_id
-            )
-
-        except (
-            TypeError,
-            ValueError
-        ):
-            return jsonify({
-                'success': False,
-                'error': (
-                    'atencion_servicio_id '
-                    'no es válido'
-                )
-            }), 400
-
-        # =============================================
-        # 5. BUSCAR EL SERVICIO DE ESTA ATENCIÓN
-        # =============================================
-
-        atencion_servicio = db.session.get(
-            AtencionServicio,
-            atencion_servicio_id
-        )
-
-        if not atencion_servicio:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'Servicio de la atención '
-                    'no encontrado'
-                )
-            }), 404
-
-        # Evita usar un servicio
-        # perteneciente a otro paciente.
-        if (
-            atencion_servicio.atencion_id
-            != atencion.id
-        ):
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El servicio seleccionado '
-                    'no pertenece a esta atención'
-                )
-            }), 400
-
-        if atencion_servicio.estado in (
-            'COMPLETADO',
-            'CANCELADO'
-        ):
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El servicio seleccionado '
-                    'ya no está pendiente'
-                )
-            }), 400
-
-        # =============================================
-        # 6. OBTENER SERVICIO
-        # =============================================
-
-        servicio = db.session.get(
-            Servicio,
-            atencion_servicio.servicio_id
-        )
-
-        if not servicio:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'Servicio no encontrado'
-                )
-            }), 404
-
-        if not servicio.activo:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El servicio está inactivo'
-                )
-            }), 400
-
-        # =============================================
-        # 7. OBTENER ÁREA DESTINO
-        # =============================================
-
-        area_destino = servicio.area
-
-        if not area_destino:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El servicio no tiene '
-                    'un área asignada'
-                )
-            }), 400
-
-        if not area_destino.activo:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El área destino está inactiva'
-                )
-            }), 400
-
-        if area_destino.codigo == 'CAJA':
-            return jsonify({
-                'success': False,
-                'error': (
-                    'El servicio no puede '
-                    'enviarse nuevamente a Caja'
-                )
-            }), 400
-
-        # =============================================
-        # 8. MARCAR ESTADO DE PAGO
-        # =============================================
-
-        atencion_servicio.pagado = (
-            pagado
-        )
-
-        # El servicio comienza su recorrido.
-        atencion_servicio.estado = (
-            'EN_PROCESO'
-        )
-
-        # =============================================
-        # 9. FINALIZAR TURNO DE CAJA
-        # =============================================
-
-        ahora = datetime.utcnow()
-
-        estado_anterior = (
-            turno_caja.estado
-        )
-
-        turno_caja.estado = (
-            'FINALIZADO'
-        )
-
-        turno_caja.fecha_fin = (
-            ahora
-        )
-
-        # =============================================
-        # 10. DETERMINAR DOCTOR
-        # =============================================
-
-        doctor_destino_id = None
-
-        # Si el área destino es Consulta,
-        # conservamos el doctor solicitado
-        # desde Control.
-        if area_destino.codigo == 'CONSULTA':
-            doctor_destino_id = (
-                atencion.doctor_solicitado_id
-            )
-
-        # =============================================
-        # 11. CREAR TURNO EN EL ÁREA DESTINO
-        # =============================================
-
-        nuevo_turno = TurnoArea(
-            atencion_id=(
-                atencion.id
-            ),
-
-            area_id=(
-                area_destino.id
-            ),
-
-            servicio_id=(
-                servicio.id
-            ),
-
-            doctor_id=(
-                doctor_destino_id
-            ),
-
-            numero_turno=(
-                generar_temporal()
-            ),
-
-            tipo_prioridad=(
-                turno_caja.tipo_prioridad
-            ),
-
-            estado='ESPERA'
-        )
-
-        db.session.add(
-            nuevo_turno
-        )
-
-        db.session.flush()
-
-        # Ejemplo:
-        # Consulta -> CON-0006
-        # Gabinete -> GAB-0007
-        # Óptica   -> OPT-0008
-
-        prefijo = (
-            area_destino.codigo[:3]
-            .upper()
-        )
-
-        nuevo_turno.numero_turno = (
-            f'{prefijo}-'
-            f'{nuevo_turno.id:04d}'
-        )
-
-        # =============================================
-        # 12. HISTORIAL: ESTADO DE PAGO
-        # =============================================
-
-        historial_pago = HistorialTurno(
-            atencion_id=(
-                atencion.id
-            ),
-
-            accion=(
-                'ESTADO_PAGO_SERVICIO'
-            ),
-
-            motivo=(
-                f'{servicio.nombre}: '
-                f'pagado={"SI" if pagado else "NO"}'
-            ),
-
-            usuario=usuario
-        )
-
-        # =============================================
-        # 13. HISTORIAL: SALIDA DE CAJA
-        # =============================================
-
-        historial_salida = HistorialTurno(
-            turno_area_id=(
-                turno_caja.id
-            ),
-
-            atencion_id=(
-                atencion.id
-            ),
-
-            accion='SALIDA_AREA',
-
-            estado_anterior=(
-                estado_anterior
-            ),
-
-            estado_nuevo='FINALIZADO',
-
-            motivo=(
-                f'Paciente enviado desde Caja '
-                f'a {area_destino.nombre}'
-            ),
-
-            usuario=usuario
-        )
-
-        # =============================================
-        # 14. HISTORIAL: ENTRADA A NUEVA ÁREA
-        # =============================================
-
-        historial_entrada = HistorialTurno(
-            turno_area_id=(
-                nuevo_turno.id
-            ),
-
-            atencion_id=(
-                atencion.id
-            ),
-
-            accion='ENTRADA_AREA',
-
-            estado_nuevo='ESPERA',
-
-            motivo=(
-                f'Paciente enviado para '
-                f'{servicio.nombre}'
-            ),
-
-            usuario=usuario
-        )
-
-        db.session.add(
-            historial_pago
-        )
-
-        db.session.add(
-            historial_salida
-        )
-
-        db.session.add(
-            historial_entrada
-        )
-
-        # =============================================
-        # 15. GUARDAR TODO JUNTO
-        # =============================================
-
-        db.session.commit()
-
-        # =============================================
-        # 16. RESPUESTA
-        # =============================================
-
-        return jsonify({
-            'success': True,
-
-            'message': (
-                f'Paciente enviado a '
-                f'{area_destino.nombre}'
-            ),
-
-            'atencion': (
-                serializar_atencion(
-                    atencion
-                )
-            ),
-
-            'servicio': {
-                'atencion_servicio_id': (
-                    atencion_servicio.id
-                ),
-
-                'servicio_id': (
-                    servicio.id
-                ),
-
-                'codigo': (
-                    servicio.codigo
-                ),
-
-                'nombre': (
-                    servicio.nombre
-                ),
-
-                'estado': (
-                    atencion_servicio.estado
-                ),
-
-                'pagado': (
-                    atencion_servicio.pagado
-                )
-            },
-
-            'turno_caja': {
-                'id': turno_caja.id,
-
-                'numero_turno': (
-                    turno_caja.numero_turno
-                ),
-
-                'estado': (
-                    turno_caja.estado
-                )
-            },
-
-            'turno_destino': (
-                serializar_turno_area(
-                    nuevo_turno
-                )
-            )
-        }), 200
-
-    except Exception as e:
-        db.session.rollback()
-
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 # =====================================================
 # REGISTRO TEMPORAL LEGACY
 # =====================================================

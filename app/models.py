@@ -44,6 +44,71 @@ class Paciente(db.Model):
     def __repr__(self):
         return f'<Paciente {self.nombre}>'
 
+# =====================================================
+# SEDES
+# =====================================================
+
+class Sede(db.Model):
+    __tablename__ = 'sedes'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    id_ubicacion_fundacion = db.Column(
+        db.Integer,
+        unique=True,
+        nullable=True,
+        index=True
+    )
+
+    codigo = db.Column(
+        db.String(30),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    nombre = db.Column(
+        db.String(120),
+        nullable=False
+    )
+
+    direccion = db.Column(
+        db.String(255),
+        nullable=True
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    atenciones = db.relationship(
+        'Atencion',
+        back_populates='sede',
+        lazy=True
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'id_ubicacion_fundacion': (
+                self.id_ubicacion_fundacion
+            ),
+            'codigo': self.codigo,
+            'nombre': self.nombre,
+            'direccion': self.direccion,
+            'activo': self.activo
+        }
 
 # =====================================================
 # ÁREAS
@@ -394,6 +459,18 @@ class Atencion(db.Model):
         db.Integer,
         db.ForeignKey('citas.id'),
         nullable=True
+    )
+
+    sede_id = db.Column(
+    db.Integer,
+    db.ForeignKey('sedes.id'),
+    nullable=True,
+    index=True
+)
+
+    sede = db.relationship(
+        'Sede',
+        back_populates='atenciones'
     )
 
     # Snapshot del nombre del paciente
