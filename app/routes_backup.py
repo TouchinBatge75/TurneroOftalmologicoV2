@@ -14,8 +14,7 @@ from app.models import (
     Area,
     Servicio,
     HistorialTurno,
-    Cita,
-    Sede
+    Cita
 )
 
 
@@ -40,19 +39,6 @@ def serializar_atencion(atencion):
     return {
         'id': atencion.id,
         'folio': atencion.folio,
-
-        'sede_id': atencion.sede_id,
-
-        'sede': (
-            {
-                'id': atencion.sede.id,
-                'codigo': atencion.sede.codigo,
-                'nombre': atencion.sede.nombre
-            }
-            if atencion.sede
-            else None
-        ),
-
         'paciente_id': atencion.paciente_id,
         'paciente_nombre': atencion.nombre_paciente,
         'tipo': atencion.tipo_llegada,
@@ -77,39 +63,22 @@ def serializar_atencion(atencion):
         'observaciones': atencion.observaciones
     }
 
-def serializar_turno_area(turno):
-    atencion = turno.atencion
 
+def serializar_turno_area(turno):
     return {
         'id': turno.id,
         'numero': turno.numero_turno,
         'atencion_id': turno.atencion_id,
 
-        'sede_id': (
-            atencion.sede_id
-            if atencion
-            else None
-        ),
-
-        'sede': (
-            {
-                'id': atencion.sede.id,
-                'codigo': atencion.sede.codigo,
-                'nombre': atencion.sede.nombre
-            }
-            if atencion and atencion.sede
-            else None
-        ),
-
         'paciente_nombre': (
-            atencion.nombre_paciente
-            if atencion
+            turno.atencion.nombre_paciente
+            if turno.atencion
             else None
         ),
 
         'tipo': (
-            atencion.tipo_llegada
-            if atencion
+            turno.atencion.tipo_llegada
+            if turno.atencion
             else None
         ),
 
@@ -167,6 +136,7 @@ def serializar_turno_area(turno):
         'veces_omitido': turno.veces_omitido
     }
 
+
 def nombre_completo_paciente(paciente):
     partes = [
         paciente.nombre,
@@ -179,63 +149,6 @@ def nombre_completo_paciente(paciente):
         for parte in partes
         if parte and parte.strip()
     )
-
-
-def obtener_sede_desde_query():
-    sede_id = request.args.get(
-        'sede_id'
-    )
-
-    if not sede_id:
-        return None, (
-            jsonify({
-                'success': False,
-                'error': 'sede_id es requerido'
-            }),
-            400
-        )
-
-    try:
-        sede_id = int(
-            sede_id
-        )
-
-    except (
-        TypeError,
-        ValueError
-    ):
-        return None, (
-            jsonify({
-                'success': False,
-                'error': 'sede_id no es válido'
-            }),
-            400
-        )
-
-    sede = db.session.get(
-        Sede,
-        sede_id
-    )
-
-    if not sede:
-        return None, (
-            jsonify({
-                'success': False,
-                'error': 'Sede no encontrada'
-            }),
-            404
-        )
-
-    if not sede.activo:
-        return None, (
-            jsonify({
-                'success': False,
-                'error': 'La sede está inactiva'
-            }),
-            400
-        )
-
-    return sede, None
 
 
 # =====================================================
@@ -256,7 +169,6 @@ def api_index():
             'turnos': '/api/turnos',
             'areas': '/api/areas',
             'servicios': '/api/servicios',
-            'sedes': '/api/sedes',
             'buscar_paciente': '/api/control/buscar-paciente?q=nombre',
             'registrar_control': '/api/control/registrar',
             'test': '/api/test'
@@ -271,36 +183,6 @@ def test():
         'message': 'API funcionando correctamente',
         'timestamp': datetime.now().isoformat()
     })
-
-
-@bp.route('/sedes', methods=['GET'])
-def get_sedes():
-    try:
-        sedes = (
-            Sede.query
-            .filter(
-                Sede.activo.is_(True)
-            )
-            .order_by(
-                Sede.nombre.asc()
-            )
-            .all()
-        )
-
-        return jsonify({
-            'success': True,
-            'sedes': [
-                sede.to_dict()
-                for sede in sedes
-            ],
-            'total': len(sedes)
-        })
-
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
 
 # =====================================================
@@ -387,51 +269,6 @@ def registrar_control():
         data = request.get_json(
             silent=True
         ) or {}
-
-        # =================================================
-        # VALIDAR SEDE
-        # =================================================
-
-        sede_id = data.get(
-            'sede_id'
-        )
-
-        if not sede_id:
-            return jsonify({
-                'success': False,
-                'error': 'sede_id es requerido'
-            }), 400
-
-        try:
-            sede_id = int(
-                sede_id
-            )
-
-        except (
-            TypeError,
-            ValueError
-        ):
-            return jsonify({
-                'success': False,
-                'error': 'sede_id no es válido'
-            }), 400
-
-        sede = db.session.get(
-            Sede,
-            sede_id
-        )
-
-        if not sede:
-            return jsonify({
-                'success': False,
-                'error': 'Sede no encontrada'
-            }), 404
-
-        if not sede.activo:
-            return jsonify({
-                'success': False,
-                'error': 'La sede está inactiva'
-            }), 400
 
         # =================================================
         # DATOS BÁSICOS
@@ -807,8 +644,6 @@ def registrar_control():
         atencion = Atencion(
             folio=generar_temporal(),
 
-            sede_id=sede.id,
-
             paciente_id=paciente.id,
 
             cita_id=(
@@ -1056,12 +891,6 @@ def registrar_control():
                 f'Destino: '
                 f'{area_destino.nombre}'
             ),
-
-            'sede': {
-                'id': sede.id,
-                'codigo': sede.codigo,
-                'nombre': sede.nombre
-            },
 
             'paciente': {
                 'id': paciente.id,
@@ -1624,62 +1453,22 @@ def get_turnos():
 @bp.route('/trabajo-social/turnos', methods=['GET'])
 def trabajo_social_turnos():
     try:
-        # =============================================
-        # 1. VALIDAR SEDE
-        # =============================================
-
-        sede, error_sede = (
-            obtener_sede_desde_query()
-        )
-
-        if error_sede:
-            return error_sede
-
-        # =============================================
-        # 2. BUSCAR ÁREA DE TRABAJO SOCIAL
-        # =============================================
-
-        area = (
-            Area.query
-            .filter_by(
-                codigo='TRABAJO_SOCIAL',
-                activo=True
-            )
-            .first()
-        )
+        area = Area.query.filter_by(
+            codigo='TRABAJO_SOCIAL',
+            activo=True
+        ).first()
 
         if not area:
             return jsonify({
                 'success': False,
-                'message': (
-                    'No se encontró el área '
-                    'de Trabajo Social'
-                )
+                'message': 'No se encontró el área de Trabajo Social'
             }), 404
-
-        # =============================================
-        # 3. BUSCAR TURNOS DE ESTA SEDE
-        # =============================================
 
         turnos = (
             TurnoArea.query
-            .join(
-                Atencion,
-                TurnoArea.atencion_id
-                == Atencion.id
-            )
             .filter(
-                TurnoArea.area_id
-                == area.id,
-
-                Atencion.sede_id
-                == sede.id,
-
-                TurnoArea.estado.in_([
-                    'ESPERA',
-                    'LLAMADO',
-                    'EN_ATENCION'
-                ])
+                TurnoArea.area_id == area.id,
+                TurnoArea.estado.in_(['ESPERA', 'LLAMADO', 'EN_ATENCION'])
             )
             .order_by(
                 TurnoArea.prioridad_manual.desc(),
@@ -1692,11 +1481,7 @@ def trabajo_social_turnos():
 
         for turno in turnos:
             atencion = turno.atencion
-
-            if not atencion:
-                continue
-
-            paciente = atencion.paciente
+            paciente = atencion.paciente if atencion else None
 
             resultado.append({
                 'id': turno.id,
@@ -1704,36 +1489,23 @@ def trabajo_social_turnos():
                 'estado': turno.estado,
                 'tipo_prioridad': turno.tipo_prioridad,
                 'veces_omitido': turno.veces_omitido,
-
                 'fecha_entrada_cola': (
                     turno.fecha_entrada_cola.isoformat()
-                    if turno.fecha_entrada_cola
-                    else None
+                    if turno.fecha_entrada_cola else None
                 ),
 
                 'atencion': {
                     'id': atencion.id,
                     'folio': atencion.folio,
-                    'sede_id': atencion.sede_id,
                     'tipo_llegada': atencion.tipo_llegada,
-                    'afiliado_al_llegar': (
-                        atencion.afiliado_al_llegar
-                    ),
-                    'nombre_paciente': (
-                        atencion.nombre_paciente
-                    )
-                },
+                    'afiliado_al_llegar': atencion.afiliado_al_llegar,
+                    'nombre_paciente': atencion.nombre_paciente
+                } if atencion else None,
 
                 'paciente': {
                     'id': paciente.id,
-                    'nombre_completo': (
-                        nombre_completo_paciente(
-                            paciente
-                        )
-                    ),
-                    'numero_afiliacion': (
-                        paciente.numero_afiliacion
-                    ),
+                    'nombre_completo': nombre_completo_paciente(paciente),
+                    'numero_afiliacion': paciente.numero_afiliacion,
                     'afiliado': paciente.afiliado,
                     'telefono': paciente.telefono
                 } if paciente else None
@@ -1741,15 +1513,11 @@ def trabajo_social_turnos():
 
         return jsonify({
             'success': True,
-
-            'sede': sede.to_dict(),
-
             'area': {
                 'id': area.id,
                 'codigo': area.codigo,
                 'nombre': area.nombre
             },
-
             'total': len(resultado),
             'turnos': resultado
         })
@@ -1757,10 +1525,7 @@ def trabajo_social_turnos():
     except Exception as e:
         return jsonify({
             'success': False,
-            'message': (
-                'Error al consultar la cola '
-                'de Trabajo Social'
-            ),
+            'message': 'Error al consultar la cola de Trabajo Social',
             'error': str(e)
         }), 500
 
@@ -2073,18 +1838,7 @@ def trabajo_social_afiliar(turno_id):
 def caja_turnos():
     try:
         # =============================================
-        # 1. VALIDAR SEDE
-        # =============================================
-
-        sede, error_sede = (
-            obtener_sede_desde_query()
-        )
-
-        if error_sede:
-            return error_sede
-
-        # =============================================
-        # 2. BUSCAR EL ÁREA DE CAJA
+        # 1. BUSCAR EL ÁREA DE CAJA
         # =============================================
 
         area_caja = (
@@ -2099,29 +1853,17 @@ def caja_turnos():
         if not area_caja:
             return jsonify({
                 'success': False,
-                'error': (
-                    'No se encontró el área de Caja'
-                )
+                'error': 'No se encontró el área de Caja'
             }), 404
 
         # =============================================
-        # 3. BUSCAR TURNOS ACTIVOS DE ESTA SEDE
+        # 2. BUSCAR PACIENTES ACTIVOS EN CAJA
         # =============================================
 
         turnos = (
             TurnoArea.query
-            .join(
-                Atencion,
-                TurnoArea.atencion_id
-                == Atencion.id
-            )
             .filter(
-                TurnoArea.area_id
-                == area_caja.id,
-
-                Atencion.sede_id
-                == sede.id,
-
+                TurnoArea.area_id == area_caja.id,
                 TurnoArea.estado.in_([
                     'ESPERA',
                     'LLAMADO',
@@ -2137,6 +1879,10 @@ def caja_turnos():
 
         resultado = []
 
+        # =============================================
+        # 3. ARMAR INFORMACIÓN DE CADA PACIENTE
+        # =============================================
+
         for turno in turnos:
             atencion = turno.atencion
 
@@ -2144,6 +1890,10 @@ def caja_turnos():
                 continue
 
             paciente = atencion.paciente
+
+            # =========================================
+            # SERVICIOS DE ESTA VISITA
+            # =========================================
 
             atencion_servicios = (
                 AtencionServicio.query
@@ -2173,17 +1923,11 @@ def caja_turnos():
                         atencion_servicio.id
                     ),
 
-                    'servicio_id': (
-                        servicio.id
-                    ),
+                    'servicio_id': servicio.id,
 
-                    'codigo': (
-                        servicio.codigo
-                    ),
+                    'codigo': servicio.codigo,
 
-                    'nombre': (
-                        servicio.nombre
-                    ),
+                    'nombre': servicio.nombre,
 
                     'estado': (
                         atencion_servicio.estado
@@ -2200,6 +1944,10 @@ def caja_turnos():
                     } if servicio.area else None
                 })
 
+            # =========================================
+            # AGREGAR TURNO AL RESULTADO
+            # =========================================
+
             resultado.append({
                 'id': turno.id,
 
@@ -2207,9 +1955,7 @@ def caja_turnos():
                     turno.numero_turno
                 ),
 
-                'estado': (
-                    turno.estado
-                ),
+                'estado': turno.estado,
 
                 'tipo_prioridad': (
                     turno.tipo_prioridad
@@ -2224,7 +1970,6 @@ def caja_turnos():
                 'atencion': {
                     'id': atencion.id,
                     'folio': atencion.folio,
-                    'sede_id': atencion.sede_id,
                     'tipo_llegada': (
                         atencion.tipo_llegada
                     ),
@@ -2235,31 +1980,26 @@ def caja_turnos():
 
                 'paciente': {
                     'id': paciente.id,
-
                     'nombre_completo': (
                         nombre_completo_paciente(
                             paciente
                         )
                     ),
-
                     'numero_afiliacion': (
                         paciente.numero_afiliacion
                     ),
-
-                    'afiliado': (
-                        paciente.afiliado
-                    )
+                    'afiliado': paciente.afiliado
                 } if paciente else None,
 
                 'servicios': servicios
             })
 
+        # =============================================
+        # 4. RESPUESTA
+        # =============================================
+
         return jsonify({
             'success': True,
-
-            'sede': (
-                sede.to_dict()
-            ),
 
             'area': {
                 'id': area_caja.id,
@@ -2267,13 +2007,9 @@ def caja_turnos():
                 'nombre': area_caja.nombre
             },
 
-            'total': (
-                len(resultado)
-            ),
+            'total': len(resultado),
 
-            'turnos': (
-                resultado
-            )
+            'turnos': resultado
         })
 
     except Exception as e:
@@ -2295,51 +2031,6 @@ def crear_turno():
         data = request.get_json(
             silent=True
         ) or {}
-
-        # =================================================
-        # VALIDAR SEDE
-        # =================================================
-
-        sede_id = data.get(
-            'sede_id'
-        )
-
-        if not sede_id:
-            return jsonify({
-                'success': False,
-                'error': 'sede_id es requerido'
-            }), 400
-
-        try:
-            sede_id = int(
-                sede_id
-            )
-
-        except (
-            TypeError,
-            ValueError
-        ):
-            return jsonify({
-                'success': False,
-                'error': 'sede_id no es válido'
-            }), 400
-
-        sede = db.session.get(
-            Sede,
-            sede_id
-        )
-
-        if not sede:
-            return jsonify({
-                'success': False,
-                'error': 'Sede no encontrada'
-            }), 404
-
-        if not sede.activo:
-            return jsonify({
-                'success': False,
-                'error': 'La sede está inactiva'
-            }), 400
 
         nombre = (
             data.get(
@@ -2463,8 +2154,6 @@ def crear_turno():
 
         atencion = Atencion(
             folio=generar_temporal(),
-
-            sede_id=sede.id,
 
             nombre_paciente=(
                 nombre.strip()
