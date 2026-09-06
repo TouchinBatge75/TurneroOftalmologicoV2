@@ -15,7 +15,8 @@ from app.models import (
     Servicio,
     HistorialTurno,
     Cita,
-    Sede
+    Sede,
+    SedeArea
 )
 
 
@@ -236,7 +237,32 @@ def obtener_sede_desde_query():
         )
 
     return sede, None
+def area_disponible_en_sede(sede_id, area_id):
+    """
+    Indica si un área está disponible para operar
+    dentro de una sede específica.
 
+    Se consideran dos niveles:
+    1. El área debe estar activa globalmente.
+    2. La relación SedeArea debe estar activa.
+    """
+
+    sede_area = (
+        SedeArea.query
+        .join(
+            Area,
+            SedeArea.area_id == Area.id
+        )
+        .filter(
+            SedeArea.sede_id == sede_id,
+            SedeArea.area_id == area_id,
+            SedeArea.activo.is_(True),
+            Area.activo.is_(True)
+        )
+        .first()
+    )
+
+    return sede_area is not None
 
 # =====================================================
 # API / PRUEBAS
@@ -301,7 +327,176 @@ def get_sedes():
             'success': False,
             'error': str(e)
         }), 500
+@bp.route('/sedes/<int:sede_id>/areas', methods=['GET'])
+def get_areas_sede(sede_id):
+    try:
+        # =============================================
+        # 1. BUSCAR SEDE
+        # =============================================
 
+        sede = db.session.get(
+            Sede,
+            sede_id
+        )
+
+        if not sede:
+            return jsonify({
+                'success': False,
+                'error': 'Sede no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. BUSCAR TODAS LAS ÁREAS DE LA SEDE
+        # =============================================
+
+        areas_sede = (
+            SedeArea.query
+            .join(
+                Area,
+                SedeArea.area_id == Area.id
+            )
+            .filter(
+                SedeArea.sede_id == sede.id
+            )
+            .order_by(
+                SedeArea.orden_visual.asc(),
+                Area.nombre.asc()
+            )
+            .all()
+        )
+
+        # =============================================
+        # 3. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'sede': sede.to_dict(),
+
+            'areas': [
+                sede_area.to_dict()
+                for sede_area in areas_sede
+            ],
+
+            'total': len(areas_sede)
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+@bp.route(
+    '/sedes/<int:sede_id>/areas/<int:area_id>',
+    methods=['PUT']
+)
+def actualizar_area_sede(sede_id, area_id):
+    try:
+        # =============================================
+        # 1. VALIDAR SEDE
+        # =============================================
+
+        sede = db.session.get(
+            Sede,
+            sede_id
+        )
+
+        if not sede:
+            return jsonify({
+                'success': False,
+                'error': 'Sede no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ÁREA
+        # =============================================
+
+        area = db.session.get(
+            Area,
+            area_id
+        )
+
+        if not area:
+            return jsonify({
+                'success': False,
+                'error': 'Área no encontrada'
+            }), 404
+
+        # =============================================
+        # 3. BUSCAR RELACIÓN SEDE - ÁREA
+        # =============================================
+
+        sede_area = (
+            SedeArea.query
+            .filter_by(
+                sede_id=sede.id,
+                area_id=area.id
+            )
+            .first()
+        )
+
+        if not sede_area:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El área no está configurada '
+                    'para esta sede'
+                )
+            }), 404
+
+        # =============================================
+        # 4. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        if 'activo' not in data:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El campo activo es requerido'
+                )
+            }), 400
+
+        if not isinstance(data['activo'], bool):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'activo debe ser true o false'
+                )
+            }), 400
+
+        # =============================================
+        # 5. ACTUALIZAR
+        # =============================================
+
+        sede_area.activo = data['activo']
+
+        db.session.commit()
+
+        # =============================================
+        # 6. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Área {area.nombre} '
+                f'actualizada en {sede.nombre}'
+            ),
+            'sede_area': sede_area.to_dict()
+        })
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # =====================================================
 # CONTROL / RECEPCIÓN INICIAL
@@ -1873,23 +2068,8 @@ def trabajo_social_afiliar(turno_id):
                 )
             }), 409
 
-        # =============================================
-        # 6. AFILIAR AL PACIENTE
-        # =============================================
-
-        paciente.afiliado = True
-        paciente.numero_afiliacion = (
-            numero_afiliacion
-        )
-
-        # IMPORTANTE:
-        # NO modificamos atencion.afiliado_al_llegar.
-        #
-        # Si Juan llegó NO afiliado,
-        # esa información histórica debe conservarse.
-
-        # =============================================
-        # 7. BUSCAR CAJA
+                # =============================================
+        # 6. BUSCAR CAJA
         # =============================================
 
         area_caja = (
@@ -1909,10 +2089,49 @@ def trabajo_social_afiliar(turno_id):
                 )
             }), 500
 
+        # =============================================
+        # 7. VALIDAR QUE CAJA OPERE EN ESTA SEDE
+        # =============================================
+
+        if not atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene una sede asignada'
+                )
+            }), 409
+
+        if not area_disponible_en_sede(
+            atencion.sede_id,
+            area_caja.id
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El área de Caja no está disponible '
+                    'en esta sede'
+                )
+            }), 409
+
+        # =============================================
+        # 8. AFILIAR AL PACIENTE
+        # =============================================
+
+        paciente.afiliado = True
+        paciente.numero_afiliacion = (
+            numero_afiliacion
+        )
+
+        # IMPORTANTE:
+        # NO modificamos atencion.afiliado_al_llegar.
+        #
+        # Ese campo conserva cómo llegó el paciente,
+        # aunque sea afiliado posteriormente.
+
         ahora = datetime.utcnow()
 
         # =============================================
-        # 8. FINALIZAR TRABAJO SOCIAL
+        # 9. FINALIZAR TRABAJO SOCIAL
         # =============================================
 
         estado_anterior = turno.estado
@@ -1921,7 +2140,7 @@ def trabajo_social_afiliar(turno_id):
         turno.fecha_fin = ahora
 
         # =============================================
-        # 9. CREAR NUEVO TURNO EN CAJA
+        # 10. CREAR NUEVO TURNO EN CAJA
         # =============================================
 
         nuevo_turno = TurnoArea(
@@ -1951,7 +2170,7 @@ def trabajo_social_afiliar(turno_id):
         )
 
         # =============================================
-        # 10. GUARDAR HISTORIAL
+        # 11. GUARDAR HISTORIAL
         # =============================================
 
         historial_afiliacion = HistorialTurno(
@@ -2013,7 +2232,7 @@ def trabajo_social_afiliar(turno_id):
         )
 
         # =============================================
-        # 11. GUARDAR TODO JUNTO
+        # 12. GUARDAR TODO JUNTO
         # =============================================
 
         db.session.commit()

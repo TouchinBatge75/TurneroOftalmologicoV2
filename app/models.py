@@ -98,6 +98,13 @@ class Sede(db.Model):
         lazy=True
     )
 
+    areas = db.relationship(
+        'SedeArea',
+        back_populates='sede',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -161,8 +168,112 @@ class Area(db.Model):
         lazy=True
     )
 
+    sedes = db.relationship(
+        'SedeArea',
+        back_populates='area',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
+
     def __repr__(self):
         return f'<Area {self.codigo}>'
+
+# =====================================================
+# ÁREAS DISPONIBLES POR SEDE
+# =====================================================
+
+class SedeArea(db.Model):
+    __tablename__ = 'sede_areas'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    orden_visual = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    sede = db.relationship(
+        'Sede',
+        back_populates='areas'
+    )
+
+    area = db.relationship(
+        'Area',
+        back_populates='sedes'
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'sede_id',
+            'area_id',
+            name='uq_sede_area'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sede_id': self.sede_id,
+            'area_id': self.area_id,
+
+            'sede': (
+                self.sede.nombre
+                if self.sede
+                else None
+            ),
+
+            'area': (
+                self.area.nombre
+                if self.area
+                else None
+            ),
+
+            'codigo_area': (
+                self.area.codigo
+                if self.area
+                else None
+            ),
+
+            'activo': self.activo,
+            'orden_visual': self.orden_visual
+        }
+
+    def __repr__(self):
+        return (
+            f'<SedeArea '
+            f'sede={self.sede_id} '
+            f'area={self.area_id}>'
+        )
 
 
 # =====================================================
