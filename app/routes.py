@@ -1123,6 +1123,24 @@ def registrar_control():
                     f'{codigo_area_destino}'
                 )
             }), 500
+                # =================================================
+        # VALIDAR DESTINO EN LA SEDE
+        # =================================================
+
+        if not area_disponible_en_sede(
+            sede.id,
+            area_destino.id
+        ):
+            db.session.rollback()
+
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El área {area_destino.nombre} '
+                    f'no está disponible en la sede '
+                    f'{sede.nombre}'
+                )
+            }), 409
 
         # =================================================
         # SERVICIO DE COLA
