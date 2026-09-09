@@ -105,6 +105,13 @@ class Sede(db.Model):
         lazy=True
     )
 
+    servicios = db.relationship(
+        'ServicioSede',
+        back_populates='sede',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -324,11 +331,118 @@ class Servicio(db.Model):
         'Area',
         back_populates='servicios'
     )
+    
+    sedes = db.relationship(
+            'ServicioSede',
+            back_populates='servicio',
+            cascade='all, delete-orphan',
+            lazy=True
+        )
 
     def __repr__(self):
         return f'<Servicio {self.nombre}>'
 
+# =====================================================
+# SERVICIOS DISPONIBLES POR SEDE
+# =====================================================
 
+class ServicioSede(db.Model):
+    __tablename__ = 'servicio_sedes'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    servicio_id = db.Column(
+        db.Integer,
+        db.ForeignKey('servicios.id'),
+        nullable=False,
+        index=True
+    )
+
+    disponible = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    modalidad = db.Column(
+        db.String(20),
+        nullable=True
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    sede = db.relationship(
+        'Sede',
+        back_populates='servicios'
+    )
+
+    servicio = db.relationship(
+        'Servicio',
+        back_populates='sedes'
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'sede_id',
+            'servicio_id',
+            name='uq_servicio_sede'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sede_id': self.sede_id,
+            'servicio_id': self.servicio_id,
+
+            'sede': (
+                self.sede.nombre
+                if self.sede
+                else None
+            ),
+
+            'servicio': (
+                self.servicio.nombre
+                if self.servicio
+                else None
+            ),
+
+            'codigo_servicio': (
+                self.servicio.codigo
+                if self.servicio
+                else None
+            ),
+
+            'area_id': (
+                self.servicio.area_id
+                if self.servicio
+                else None
+            ),
+
+            'area': (
+                self.servicio.area.nombre
+                if self.servicio
+                and self.servicio.area
+                else None
+            ),
+
+            'disponible': self.disponible,
+            'modalidad': self.modalidad
+        }
 # =====================================================
 # DOCTORES
 # =====================================================

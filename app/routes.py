@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 
 from app import db
 from app.models import (
@@ -13,6 +13,7 @@ from app.models import (
     TurnoArea,
     Area,
     Servicio,
+    ServicioSede,
     HistorialTurno,
     Cita,
     Sede,
@@ -264,6 +265,48 @@ def area_disponible_en_sede(sede_id, area_id):
 
     return sede_area is not None
 
+def obtener_servicio_en_sede(sede_id, servicio_id):
+    """
+    Obtiene la configuración de un servicio
+    dentro de una sede.
+
+    Para que sea utilizable:
+    1. El servicio debe estar activo globalmente.
+    2. Su área debe estar activa globalmente.
+    3. El área debe estar habilitada en la sede.
+    4. El servicio debe estar disponible en la sede.
+    """
+
+    servicio_sede = (
+        ServicioSede.query
+        .join(
+            Servicio,
+            ServicioSede.servicio_id == Servicio.id
+        )
+        .join(
+            Area,
+            Servicio.area_id == Area.id
+        )
+        .join(
+            SedeArea,
+            and_(
+                SedeArea.sede_id == ServicioSede.sede_id,
+                SedeArea.area_id == Servicio.area_id
+            )
+        )
+        .filter(
+            ServicioSede.sede_id == sede_id,
+            ServicioSede.servicio_id == servicio_id,
+            ServicioSede.disponible.is_(True),
+            Servicio.activo.is_(True),
+            Area.activo.is_(True),
+            SedeArea.activo.is_(True)
+        )
+        .first()
+    )
+
+    return servicio_sede
+
 # =====================================================
 # API / PRUEBAS
 # =====================================================
@@ -387,6 +430,77 @@ def get_areas_sede(sede_id):
             'success': False,
             'error': str(e)
         }), 500
+
+@bp.route(
+    '/sedes/<int:sede_id>/servicios',
+    methods=['GET']
+)
+def get_servicios_sede(sede_id):
+    try:
+        # =============================================
+        # 1. VALIDAR SEDE
+        # =============================================
+
+        sede = db.session.get(
+            Sede,
+            sede_id
+        )
+
+        if not sede:
+            return jsonify({
+                'success': False,
+                'error': 'Sede no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. BUSCAR SERVICIOS CONFIGURADOS EN LA SEDE
+        # =============================================
+
+        servicios_sede = (
+            ServicioSede.query
+            .join(
+                Servicio,
+                ServicioSede.servicio_id == Servicio.id
+            )
+            .join(
+                Area,
+                Servicio.area_id == Area.id
+            )
+            .filter(
+                ServicioSede.sede_id == sede.id
+            )
+            .order_by(
+                Area.orden_visual.asc(),
+                Servicio.nombre.asc()
+            )
+            .all()
+        )
+
+        # =============================================
+        # 3. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'sede': sede.to_dict(),
+
+            'servicios': [
+                servicio_sede.to_dict()
+                for servicio_sede in servicios_sede
+            ],
+
+            'total': len(
+                servicios_sede
+            )
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @bp.route(
     '/sedes/<int:sede_id>/areas/<int:area_id>',
     methods=['PUT']
