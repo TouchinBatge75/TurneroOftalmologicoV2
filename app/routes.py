@@ -1168,6 +1168,7 @@ def registrar_control():
 
         servicios = []
         servicios_vistos = set()
+        configuraciones_servicios = {}
 
         for servicio_item_id in servicios_ids:
             try:
@@ -1224,6 +1225,10 @@ def registrar_control():
                         f'{sede.nombre}'
                     )
                 }), 409
+
+            configuraciones_servicios[
+                servicio.id
+            ] = configuracion_servicio
 
             servicios.append(
                 servicio
@@ -1376,9 +1381,17 @@ def registrar_control():
                 servicio_id=servicio.id,
                 origen='CONTROL',
                 estado='PENDIENTE',
+
+                modalidad=(
+                    configuraciones_servicios[
+                        servicio.id
+                    ].modalidad
+                ),
+
                 requiere_pago=(
                     servicio.requiere_pago
                 ),
+
                 pagado=False,
                 orden=orden
             )
@@ -1391,6 +1404,11 @@ def registrar_control():
                 'servicio_id': servicio.id,
                 'codigo': servicio.codigo,
                 'nombre': servicio.nombre,
+                 'modalidad': (
+                    configuraciones_servicios[
+                        servicio.id
+                    ].modalidad
+                ),
                 'orden': orden,
                 'pagado': False
             })

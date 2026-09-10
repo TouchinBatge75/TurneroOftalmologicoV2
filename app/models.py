@@ -331,7 +331,7 @@ class Servicio(db.Model):
         'Area',
         back_populates='servicios'
     )
-    
+
     sedes = db.relationship(
             'ServicioSede',
             back_populates='servicio',
@@ -815,23 +815,23 @@ class AtencionServicio(db.Model):
         db.ForeignKey('atenciones.id'),
         nullable=False
     )
-
     servicio_id = db.Column(
         db.Integer,
         db.ForeignKey('servicios.id'),
         nullable=False
     )
-
     origen = db.Column(
         db.String(50)
     )
-
     estado = db.Column(
         db.String(30),
         default='PENDIENTE',
         nullable=False
     )
-
+    modalidad = db.Column(
+        db.String(20),
+        nullable=True
+    )
     requiere_pago = db.Column(
         db.Boolean,
         default=True,
@@ -958,16 +958,13 @@ class TurnoArea(db.Model):
         'Area',
         back_populates='turnos'
     )
-
     servicio = db.relationship(
         'Servicio'
     )
-
     doctor = db.relationship(
         'Doctor',
         back_populates='turnos_area'
     )
-
     historial = db.relationship(
         'HistorialTurno',
         back_populates='turno_area',
