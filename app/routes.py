@@ -2115,7 +2115,408 @@ def get_atenciones():
             'error': str(e)
         }), 500
 
+@bp.route(
+    '/atencion-servicios/<int:atencion_servicio_id>/derivar-externo',
+    methods=['POST']
+)
+def derivar_servicio_externo(atencion_servicio_id):
+    try:
+        # =============================================
+        # 1. BUSCAR SERVICIO DE LA ATENCIÓN
+        # =============================================
 
+        atencion_servicio = db.session.get(
+            AtencionServicio,
+            atencion_servicio_id
+        )
+
+        if not atencion_servicio:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Servicio de atención '
+                    'no encontrado'
+                )
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = atencion_servicio.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención asociada '
+                    'no fue encontrada'
+                )
+            }), 404
+
+        # =============================================
+        # 3. VALIDAR SERVICIO
+        # =============================================
+
+        servicio = atencion_servicio.servicio
+
+        if not servicio:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El servicio asociado '
+                    'no fue encontrado'
+                )
+            }), 404
+
+        # =============================================
+        # 4. VALIDAR MODALIDAD HISTÓRICA
+        # =============================================
+
+        if atencion_servicio.modalidad != 'EXTERNO':
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El servicio {servicio.nombre} '
+                    f'no fue registrado como EXTERNO '
+                    f'en esta atención'
+                )
+            }), 409
+
+        # =============================================
+        # 5. VALIDAR ESTADO
+        # =============================================
+
+        estados_permitidos = (
+            'PENDIENTE',
+            'DERIVADO_EXTERNO'
+        )
+
+        if (
+            atencion_servicio.estado
+            not in estados_permitidos
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El servicio no puede derivarse '
+                    f'desde el estado '
+                    f'{atencion_servicio.estado}'
+                )
+            }), 409
+
+        ya_derivado = (
+            atencion_servicio.estado
+            == 'DERIVADO_EXTERNO'
+        )
+
+        # =============================================
+        # 6. LEER DATOS OPCIONALES
+        # =============================================
+
+        if request.data:
+            data = request.get_json(
+                silent=True
+            )
+
+            if data is None:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'El cuerpo JSON no es válido '
+                        'o no pudo interpretarse correctamente'
+                    )
+                }), 400
+        else:
+            data = {}
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        motivo = str(
+            data.get('motivo')
+            or ''
+        ).strip()
+
+        if not motivo:
+            motivo = (
+                f'Servicio {servicio.nombre} '
+                f'derivado para realización externa'
+            )
+
+        # =============================================
+        # 7. BUSCAR OTROS SERVICIOS PENDIENTES
+        # =============================================
+
+        otros_pendientes = (
+            AtencionServicio.query
+            .filter(
+                AtencionServicio.atencion_id
+                == atencion.id,
+
+                AtencionServicio.id
+                != atencion_servicio.id,
+
+                AtencionServicio.estado
+                == 'PENDIENTE'
+            )
+            .all()
+        )
+
+        quedan_servicios_pendientes = (
+            len(otros_pendientes) > 0
+        )
+
+        # =============================================
+        # 8. BUSCAR TURNO ACTIVO DE LA ATENCIÓN
+        # =============================================
+
+        turnos_activos = (
+            TurnoArea.query
+            .filter(
+                TurnoArea.atencion_id
+                == atencion.id,
+
+                TurnoArea.estado.in_([
+                    'ESPERA',
+                    'LLAMADO',
+                    'EN_ATENCION'
+                ])
+            )
+            .order_by(
+                TurnoArea.id.desc()
+            )
+            .all()
+        )
+
+        # Una atención normalmente debe tener
+        # solamente un turno activo.
+        if len(turnos_activos) > 1:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención tiene más de un '
+                    'turno activo. Debe revisarse '
+                    'antes de finalizarla.'
+                )
+            }), 409
+
+        # =============================================
+        # 9. MARCAR SERVICIO COMO DERIVADO
+        # =============================================
+
+        if not ya_derivado:
+            estado_anterior = (
+                atencion_servicio.estado
+            )
+
+            atencion_servicio.estado = (
+                'DERIVADO_EXTERNO'
+            )
+
+            historial_servicio = HistorialTurno(
+                turno_area_id=None,
+                atencion_id=atencion.id,
+
+                accion=(
+                    'SERVICIO_DERIVADO_EXTERNO'
+                ),
+
+                estado_anterior=estado_anterior,
+
+                estado_nuevo=(
+                    'DERIVADO_EXTERNO'
+                ),
+
+                motivo=motivo,
+                usuario=usuario
+            )
+
+            db.session.add(
+                historial_servicio
+            )
+
+        # =============================================
+        # 10. FINALIZAR RECORRIDO SI YA NO QUEDA NADA
+        # =============================================
+
+        atencion_finalizada = False
+        turno_finalizado = None
+
+        if not quedan_servicios_pendientes:
+            ahora = datetime.utcnow()
+
+            # -----------------------------------------
+            # FINALIZAR TURNO ACTIVO
+            # -----------------------------------------
+
+            if turnos_activos:
+                turno_actual = turnos_activos[0]
+
+                estado_turno_anterior = (
+                    turno_actual.estado
+                )
+
+                turno_actual.estado = (
+                    'FINALIZADO'
+                )
+
+                turno_actual.fecha_fin = (
+                    ahora
+                )
+
+                turno_finalizado = (
+                    turno_actual
+                )
+
+                historial_salida = HistorialTurno(
+                    turno_area_id=turno_actual.id,
+                    atencion_id=atencion.id,
+
+                    accion='SALIDA_AREA',
+
+                    estado_anterior=(
+                        estado_turno_anterior
+                    ),
+
+                    estado_nuevo='FINALIZADO',
+
+                    motivo=(
+                        'Fin del recorrido del '
+                        'paciente en la fundación'
+                    ),
+
+                    usuario=usuario
+                )
+
+                db.session.add(
+                    historial_salida
+                )
+
+            # -----------------------------------------
+            # FINALIZAR ATENCIÓN
+            # -----------------------------------------
+
+            if atencion.estado != 'FINALIZADA':
+                estado_atencion_anterior = (
+                    atencion.estado
+                )
+
+                atencion.estado = (
+                    'FINALIZADA'
+                )
+
+                atencion.fecha_hora_fin = (
+                    ahora
+                )
+
+                historial_atencion = HistorialTurno(
+                    turno_area_id=None,
+                    atencion_id=atencion.id,
+
+                    accion='ATENCION_FINALIZADA',
+
+                    estado_anterior=(
+                        estado_atencion_anterior
+                    ),
+
+                    estado_nuevo='FINALIZADA',
+
+                    motivo=(
+                        'Recorrido del paciente '
+                        'finalizado'
+                    ),
+
+                    usuario=usuario
+                )
+
+                db.session.add(
+                    historial_atencion
+                )
+
+            atencion_finalizada = True
+
+        # =============================================
+        # 11. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 12. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Servicio {servicio.nombre} '
+                f'derivado externamente'
+                if not ya_derivado
+                else (
+                    f'El servicio {servicio.nombre} '
+                    f'ya estaba derivado externamente'
+                )
+            ),
+
+            'servicio': {
+                'id': atencion_servicio.id,
+                'atencion_id': atencion.id,
+                'servicio_id': servicio.id,
+                'codigo': servicio.codigo,
+                'nombre': servicio.nombre,
+                'modalidad': (
+                    atencion_servicio.modalidad
+                ),
+                'estado': (
+                    atencion_servicio.estado
+                )
+            },
+
+            'quedan_servicios_pendientes': (
+                quedan_servicios_pendientes
+            ),
+
+            'atencion_finalizada': (
+                atencion_finalizada
+            ),
+
+            'atencion': {
+                'id': atencion.id,
+                'folio': atencion.folio,
+                'estado': atencion.estado,
+
+                'fecha_hora_fin': (
+                    atencion.fecha_hora_fin.isoformat()
+                    if atencion.fecha_hora_fin
+                    else None
+                )
+            },
+
+            'turno_finalizado': (
+                {
+                    'id': turno_finalizado.id,
+                    'numero': (
+                        turno_finalizado.numero_turno
+                    ),
+                    'estado': (
+                        turno_finalizado.estado
+                    )
+                }
+                if turno_finalizado
+                else None
+            )
+        })
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 # =====================================================
 # TURNOS POR ÁREA
 # =====================================================
