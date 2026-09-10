@@ -502,6 +502,193 @@ def get_servicios_sede(sede_id):
         }), 500
 
 @bp.route(
+    '/sedes/<int:sede_id>/servicios/<int:servicio_id>',
+    methods=['PUT']
+)
+def actualizar_servicio_sede(sede_id, servicio_id):
+    try:
+        # =============================================
+        # 1. VALIDAR SEDE
+        # =============================================
+
+        sede = db.session.get(
+            Sede,
+            sede_id
+        )
+
+        if not sede:
+            return jsonify({
+                'success': False,
+                'error': 'Sede no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR SERVICIO
+        # =============================================
+
+        servicio = db.session.get(
+            Servicio,
+            servicio_id
+        )
+
+        if not servicio:
+            return jsonify({
+                'success': False,
+                'error': 'Servicio no encontrado'
+            }), 404
+
+        # =============================================
+        # 3. BUSCAR CONFIGURACIÓN SEDE - SERVICIO
+        # =============================================
+
+        servicio_sede = (
+            ServicioSede.query
+            .filter_by(
+                sede_id=sede.id,
+                servicio_id=servicio.id
+            )
+            .first()
+        )
+
+        if not servicio_sede:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El servicio no está configurado '
+                    'para esta sede'
+                )
+            }), 404
+
+        # =============================================
+        # 4. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        if (
+            'disponible' not in data
+            and 'modalidad' not in data
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Debes enviar disponible '
+                    'y/o modalidad'
+                )
+            }), 400
+
+        # =============================================
+        # 5. VALIDAR DISPONIBLE
+        # =============================================
+
+        nuevo_disponible = data.get(
+            'disponible',
+            servicio_sede.disponible
+        )
+
+        if not isinstance(
+            nuevo_disponible,
+            bool
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'disponible debe ser '
+                    'true o false'
+                )
+            }), 400
+
+        # =============================================
+        # 6. VALIDAR MODALIDAD
+        # =============================================
+
+        nueva_modalidad = data.get(
+            'modalidad',
+            servicio_sede.modalidad
+        )
+
+        if nueva_modalidad is not None:
+            if not isinstance(
+                nueva_modalidad,
+                str
+            ):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'modalidad debe ser '
+                        'INTERNO, EXTERNO o null'
+                    )
+                }), 400
+
+            nueva_modalidad = (
+                nueva_modalidad
+                .strip()
+                .upper()
+            )
+
+        # Si el servicio queda deshabilitado,
+        # no necesita modalidad.
+        if not nuevo_disponible:
+            nueva_modalidad = None
+
+        # Si está disponible, sí debe tener modalidad.
+        if (
+            nuevo_disponible
+            and nueva_modalidad not in (
+                'INTERNO',
+                'EXTERNO'
+            )
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Un servicio disponible debe tener '
+                    'modalidad INTERNO o EXTERNO'
+                )
+            }), 400
+
+        # =============================================
+        # 7. ACTUALIZAR
+        # =============================================
+
+        servicio_sede.disponible = (
+            nuevo_disponible
+        )
+
+        servicio_sede.modalidad = (
+            nueva_modalidad
+        )
+
+        db.session.commit()
+
+        # =============================================
+        # 8. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Servicio {servicio.nombre} '
+                f'actualizado en {sede.nombre}'
+            ),
+
+            'servicio_sede': (
+                servicio_sede.to_dict()
+            )
+        })
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@bp.route(
     '/sedes/<int:sede_id>/areas/<int:area_id>',
     methods=['PUT']
 )
@@ -1023,15 +1210,20 @@ def registrar_control():
                     )
                 }), 404
 
-            if not servicio.activo:
+            configuracion_servicio = obtener_servicio_en_sede(
+                sede.id,
+                servicio.id
+            )
+
+            if not configuracion_servicio:
                 return jsonify({
                     'success': False,
                     'error': (
-                        f'El servicio '
-                        f'{servicio.nombre} '
-                        f'está inactivo'
+                        f'El servicio {servicio.nombre} '
+                        f'no está disponible en la sede '
+                        f'{sede.nombre}'
                     )
-                }), 400
+                }), 409
 
             servicios.append(
                 servicio
@@ -3102,19 +3294,32 @@ def mover_turno(turno_id):
                 )
             }), 409
 
-        # =============================================
+                # =============================================
         # 6. VALIDAR SERVICIO OPCIONAL
         # =============================================
 
-        servicio_id = data.get('servicio_id')
+        servicio_id = data.get(
+            'servicio_id'
+        )
+
+        servicio = None
+        configuracion_servicio = None
 
         if servicio_id:
             try:
-                servicio_id = int(servicio_id)
-            except (TypeError, ValueError):
+                servicio_id = int(
+                    servicio_id
+                )
+
+            except (
+                TypeError,
+                ValueError
+            ):
                 return jsonify({
                     'success': False,
-                    'error': 'servicio_id no es válido'
+                    'error': (
+                        'servicio_id no es válido'
+                    )
                 }), 400
 
             servicio = db.session.get(
@@ -3125,9 +3330,86 @@ def mover_turno(turno_id):
             if not servicio:
                 return jsonify({
                     'success': False,
-                    'error': 'Servicio no encontrado'
+                    'error': (
+                        'Servicio no encontrado'
+                    )
                 }), 404
 
+            # El servicio debe pertenecer al área
+            # a la que estamos intentando enviar
+            # al paciente.
+            if servicio.area_id != area_destino.id:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El servicio {servicio.nombre} '
+                        f'no pertenece al área '
+                        f'{area_destino.nombre}'
+                    )
+                }), 400
+
+            # Validar disponibilidad completa:
+            # Servicio global
+            # + Área global
+            # + Área en sede
+            # + Servicio en sede
+            configuracion_servicio = (
+                obtener_servicio_en_sede(
+                    atencion.sede_id,
+                    servicio.id
+                )
+            )
+
+            if not configuracion_servicio:
+                sede = db.session.get(
+                    Sede,
+                    atencion.sede_id
+                )
+
+                nombre_sede = (
+                    sede.nombre
+                    if sede
+                    else f'ID {atencion.sede_id}'
+                )
+
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El servicio {servicio.nombre} '
+                        f'no está disponible en la sede '
+                        f'{nombre_sede}'
+                    )
+                }), 409
+
+            # Un servicio EXTERNO sí está disponible,
+            # pero NO debe generar una cola interna.
+            if (
+                configuracion_servicio.modalidad
+                == 'EXTERNO'
+            ):
+                sede = db.session.get(
+                    Sede,
+                    atencion.sede_id
+                )
+
+                nombre_sede = (
+                    sede.nombre
+                    if sede
+                    else f'ID {atencion.sede_id}'
+                )
+
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El servicio {servicio.nombre} '
+                        f'es EXTERNO en la sede '
+                        f'{nombre_sede} y no puede '
+                        f'generar un turno interno en '
+                        f'{area_destino.nombre}'
+                    ),
+                    'modalidad': 'EXTERNO',
+                    'servicio_id': servicio.id
+                }), 409
         # =============================================
         # 7. VALIDAR DOCTOR OPCIONAL
         # =============================================
