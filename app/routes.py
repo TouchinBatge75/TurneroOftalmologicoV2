@@ -626,6 +626,154 @@ def obtener_turnos_area_sede(sede, area):
 
     return resultado
 
+
+def mover_turno_a_area(
+    turno_actual,
+    area_destino,
+    servicio_id=None,
+    doctor_id=None,
+    tipo_prioridad=None,
+    motivo_salida=None,
+    motivo_entrada=None,
+    usuario='sistema'
+):
+    """
+    Mueve un turno de su área actual hacia otra área.
+
+    Esta función realiza únicamente la operación común
+    del Core:
+
+    1. Finaliza el turno actual.
+    2. Crea un nuevo TurnoArea.
+    3. Genera el número del nuevo turno.
+    4. Registra la salida del área anterior.
+    5. Registra la entrada al área destino.
+
+    Las validaciones de negocio deben realizarse antes
+    de llamar a esta función.
+
+    Esta función NO hace commit.
+    El endpoint que la utilice decide cuándo guardar.
+    """
+
+    # =============================================
+    # 1. DATOS DEL TURNO ACTUAL
+    # =============================================
+
+    ahora = datetime.utcnow()
+
+    estado_anterior = (
+        turno_actual.estado
+    )
+
+    # =============================================
+    # 2. FINALIZAR TURNO ACTUAL
+    # =============================================
+
+    turno_actual.estado = 'FINALIZADO'
+    turno_actual.fecha_fin = ahora
+
+    # =============================================
+    # 3. DETERMINAR PRIORIDAD
+    # =============================================
+
+    prioridad_nueva = (
+        tipo_prioridad
+        if tipo_prioridad is not None
+        else (
+            turno_actual.tipo_prioridad
+            or 'NORMAL'
+        )
+    )
+
+    # =============================================
+    # 4. CREAR NUEVO TURNO
+    # =============================================
+
+    nuevo_turno = TurnoArea(
+        atencion_id=turno_actual.atencion_id,
+        area_id=area_destino.id,
+        servicio_id=servicio_id,
+        doctor_id=doctor_id,
+        numero_turno=generar_temporal(),
+        tipo_prioridad=prioridad_nueva,
+        estado='ESPERA'
+    )
+
+    db.session.add(
+        nuevo_turno
+    )
+
+    db.session.flush()
+
+    # =============================================
+    # 5. GENERAR NÚMERO DEL TURNO
+    # =============================================
+
+    prefijo = (
+        area_destino.codigo[:3].upper()
+        if area_destino.codigo
+        else 'T'
+    )
+
+    nuevo_turno.numero_turno = (
+        f'{prefijo}-{nuevo_turno.id:04d}'
+    )
+
+    # =============================================
+    # 6. HISTORIAL DE SALIDA
+    # =============================================
+
+    historial_salida = HistorialTurno(
+        turno_area_id=turno_actual.id,
+        atencion_id=turno_actual.atencion_id,
+        accion='SALIDA_AREA',
+        estado_anterior=estado_anterior,
+        estado_nuevo='FINALIZADO',
+        motivo=(
+            motivo_salida
+            or (
+                f'Salida de '
+                f'{turno_actual.area.nombre}'
+                if turno_actual.area
+                else 'Salida del área'
+            )
+        ),
+        usuario=usuario
+    )
+
+    # =============================================
+    # 7. HISTORIAL DE ENTRADA
+    # =============================================
+
+    historial_entrada = HistorialTurno(
+        turno_area_id=nuevo_turno.id,
+        atencion_id=nuevo_turno.atencion_id,
+        accion='ENTRADA_AREA',
+        estado_nuevo='ESPERA',
+        motivo=(
+            motivo_entrada
+            or (
+                f'Derivado a '
+                f'{area_destino.nombre}'
+            )
+        ),
+        usuario=usuario
+    )
+
+    db.session.add(
+        historial_salida
+    )
+
+    db.session.add(
+        historial_entrada
+    )
+
+    # =============================================
+    # 8. DEVOLVER NUEVO TURNO
+    # =============================================
+
+    return nuevo_turno
 # =====================================================
 # API / PRUEBAS
 # =====================================================
@@ -2956,7 +3104,7 @@ def trabajo_social_turnos():
             }), 404
 
         # =============================================
-        # 3. VALIDAR QUE TRABAJO SOCIAL OPERE EN LA SEDE
+        # 3. VALIDAR DISPONIBILIDAD EN LA SEDE
         # =============================================
 
         if not area_disponible_en_sede(
@@ -2966,93 +3114,57 @@ def trabajo_social_turnos():
             return jsonify({
                 'success': False,
                 'error': (
-                    f'El área Trabajo Social '
+                    f'El área {area.nombre} '
                     f'no está disponible en la sede '
                     f'{sede.nombre}'
                 )
             }), 409
 
         # =============================================
-        # 4. BUSCAR TURNOS DE ESTA SEDE
+        # 4. OBTENER COLA DESDE EL CORE GENÉRICO
         # =============================================
 
-        turnos = (
-            TurnoArea.query
-            .join(
-                Atencion,
-                TurnoArea.atencion_id
-                == Atencion.id
-            )
-            .filter(
-                TurnoArea.area_id
-                == area.id,
-
-                Atencion.sede_id
-                == sede.id,
-
-                TurnoArea.estado.in_([
-                    'ESPERA',
-                    'LLAMADO',
-                    'EN_ATENCION'
-                ])
-            )
-            .order_by(
-                TurnoArea.prioridad_manual.desc(),
-                TurnoArea.fecha_entrada_cola.asc()
-            )
-            .all()
+        turnos = obtener_turnos_area_sede(
+            sede,
+            area
         )
 
-        resultado = []
+        # =============================================
+        # 5. AGREGAR DATOS PROPIOS DE TRABAJO SOCIAL
+        # =============================================
 
-        for turno in turnos:
-            atencion = turno.atencion
+        for turno_data in turnos:
+            atencion_id = (
+                turno_data
+                .get('atencion', {})
+                .get('id')
+            )
+
+            if not atencion_id:
+                continue
+
+            atencion = db.session.get(
+                Atencion,
+                atencion_id
+            )
 
             if not atencion:
                 continue
 
             paciente = atencion.paciente
 
-            resultado.append({
-                'id': turno.id,
-                'numero_turno': turno.numero_turno,
-                'estado': turno.estado,
-                'tipo_prioridad': turno.tipo_prioridad,
-                'veces_omitido': turno.veces_omitido,
+            turno_data['atencion'][
+                'afiliado_al_llegar'
+            ] = atencion.afiliado_al_llegar
 
-                'fecha_entrada_cola': (
-                    turno.fecha_entrada_cola.isoformat()
-                    if turno.fecha_entrada_cola
-                    else None
-                ),
+            if paciente:
+                turno_data['paciente'][
+                    'telefono'
+                ] = paciente.telefono
 
-                'atencion': {
-                    'id': atencion.id,
-                    'folio': atencion.folio,
-                    'sede_id': atencion.sede_id,
-                    'tipo_llegada': atencion.tipo_llegada,
-                    'afiliado_al_llegar': (
-                        atencion.afiliado_al_llegar
-                    ),
-                    'nombre_paciente': (
-                        atencion.nombre_paciente
-                    )
-                },
-
-                'paciente': {
-                    'id': paciente.id,
-                    'nombre_completo': (
-                        nombre_completo_paciente(
-                            paciente
-                        )
-                    ),
-                    'numero_afiliacion': (
-                        paciente.numero_afiliacion
-                    ),
-                    'afiliado': paciente.afiliado,
-                    'telefono': paciente.telefono
-                } if paciente else None
-            })
+        # =============================================
+        # 6. RESPUESTA
+        # =============================================
 
         return jsonify({
             'success': True,
@@ -3065,8 +3177,13 @@ def trabajo_social_turnos():
                 'nombre': area.nombre
             },
 
-            'total': len(resultado),
-            'turnos': resultado
+            'total': len(
+                turnos
+            ),
+
+            'turnos': (
+                turnos
+            )
         })
 
     except Exception as e:
@@ -3078,7 +3195,6 @@ def trabajo_social_turnos():
             ),
             'error': str(e)
         }), 500
-
 @bp.route(
     '/trabajo-social/<int:turno_id>/afiliar',
     methods=['POST']
@@ -3104,7 +3220,10 @@ def trabajo_social_afiliar(turno_id):
         # 2. COMPROBAR QUE ESTÁ EN TRABAJO SOCIAL
         # =============================================
 
-        if not turno.area or turno.area.codigo != 'TRABAJO_SOCIAL':
+        if (
+            not turno.area
+            or turno.area.codigo != 'TRABAJO_SOCIAL'
+        ):
             return jsonify({
                 'success': False,
                 'error': (
@@ -3173,7 +3292,8 @@ def trabajo_social_afiliar(turno_id):
         paciente_existente = (
             Paciente.query
             .filter(
-                Paciente.numero_afiliacion == numero_afiliacion,
+                Paciente.numero_afiliacion
+                == numero_afiliacion,
                 Paciente.id != paciente.id
             )
             .first()
@@ -3188,8 +3308,8 @@ def trabajo_social_afiliar(turno_id):
                 )
             }), 409
 
-                # =============================================
-        # 6. RESOLVER SIGUIENTE DESTINO
+        # =============================================
+        # 6. VALIDAR SEDE
         # =============================================
 
         if not atencion.sede_id:
@@ -3199,6 +3319,10 @@ def trabajo_social_afiliar(turno_id):
                     'La atención no tiene una sede asignada'
                 )
             }), 409
+
+        # =============================================
+        # 7. RESOLVER SIGUIENTE DESTINO
+        # =============================================
 
         transicion = resolver_transicion(
             atencion.sede_id,
@@ -3219,6 +3343,7 @@ def trabajo_social_afiliar(turno_id):
         servicio_destino_id = (
             transicion['servicio_id']
         )
+
         # =============================================
         # 8. AFILIAR AL PACIENTE
         # =============================================
@@ -3230,106 +3355,20 @@ def trabajo_social_afiliar(turno_id):
 
         # IMPORTANTE:
         # NO modificamos atencion.afiliado_al_llegar.
-        #
         # Ese campo conserva cómo llegó el paciente,
         # aunque sea afiliado posteriormente.
 
-        ahora = datetime.utcnow()
-
         # =============================================
-        # 9. FINALIZAR TRABAJO SOCIAL
-        # =============================================
-
-        estado_anterior = turno.estado
-
-        turno.estado = 'FINALIZADO'
-        turno.fecha_fin = ahora
-
-        # =============================================
-        # 10. CREAR NUEVO TURNO EN ÁREA DESTINO
-        # =============================================
-
-        nuevo_turno = TurnoArea(
-            atencion_id=atencion.id,
-
-            area_id=area_destino.id,
-
-            servicio_id=servicio_destino_id,
-
-            doctor_id=None,
-
-            numero_turno=generar_temporal(),
-
-            tipo_prioridad=turno.tipo_prioridad,
-
-            estado='ESPERA'
-        )
-
-        db.session.add(
-            nuevo_turno
-        )
-
-        db.session.flush()
-
-        prefijo = (
-            area_destino.codigo[:3]
-            .upper()
-        )
-
-        nuevo_turno.numero_turno = (
-            f'{prefijo}-{nuevo_turno.id:04d}'
-        )
-
-        # =============================================
-        # 11. GUARDAR HISTORIAL
+        # 9. HISTORIAL ESPECÍFICO DE AFILIACIÓN
         # =============================================
 
         historial_afiliacion = HistorialTurno(
             atencion_id=atencion.id,
-
             accion='PACIENTE_AFILIADO',
-
             motivo=(
                 f'Paciente afiliado con número '
                 f'{numero_afiliacion}'
             ),
-
-            usuario=usuario
-        )
-
-        historial_salida = HistorialTurno(
-            turno_area_id=turno.id,
-
-            atencion_id=atencion.id,
-
-            accion='SALIDA_AREA',
-
-            estado_anterior=estado_anterior,
-
-            estado_nuevo='FINALIZADO',
-
-            motivo=(
-                'Afiliación completada '
-                'en Trabajo Social'
-            ),
-
-            usuario=usuario
-        )
-
-        historial_entrada = HistorialTurno(
-            turno_area_id=nuevo_turno.id,
-
-            atencion_id=atencion.id,
-
-            accion='ENTRADA_AREA',
-
-            estado_nuevo='ESPERA',
-
-           motivo=(
-                f'Paciente enviado a '
-                f'{area_destino.nombre}'
-            ),
-
             usuario=usuario
         )
 
@@ -3337,19 +3376,36 @@ def trabajo_social_afiliar(turno_id):
             historial_afiliacion
         )
 
-        db.session.add(
-            historial_salida
-        )
+        # =============================================
+        # 10. MOVER TURNO CON EL CORE
+        # =============================================
 
-        db.session.add(
-            historial_entrada
+        nuevo_turno = mover_turno_a_area(
+            turno_actual=turno,
+            area_destino=area_destino,
+            servicio_id=servicio_destino_id,
+            doctor_id=None,
+            tipo_prioridad=turno.tipo_prioridad,
+            motivo_salida=(
+                'Afiliación completada '
+                'en Trabajo Social'
+            ),
+            motivo_entrada=(
+                f'Paciente enviado a '
+                f'{area_destino.nombre}'
+            ),
+            usuario=usuario
         )
 
         # =============================================
-        # 12. GUARDAR TODO JUNTO
+        # 11. GUARDAR TODO JUNTO
         # =============================================
 
         db.session.commit()
+
+        # =============================================
+        # 12. RESPUESTA
+        # =============================================
 
         return jsonify({
             'success': True,
@@ -3384,6 +3440,8 @@ def trabajo_social_afiliar(turno_id):
                 'estado': turno.estado
             },
 
+            # Se conserva esta clave por compatibilidad
+            # con el frontend actual.
             'turno_caja': (
                 serializar_turno_area(
                     nuevo_turno
@@ -3398,7 +3456,6 @@ def trabajo_social_afiliar(turno_id):
             'success': False,
             'error': str(e)
         }), 500
-
 # =====================================================
 # CAJA
 # =====================================================
@@ -3410,13 +3467,15 @@ def caja_turnos():
         # 1. VALIDAR SEDE
         # =============================================
 
-        sede, error_sede = obtener_sede_desde_query()
+        sede, error_sede = (
+            obtener_sede_desde_query()
+        )
 
         if error_sede:
             return error_sede
 
         # =============================================
-        # 2. BUSCAR EL ÁREA DE CAJA
+        # 2. BUSCAR ÁREA DE CAJA
         # =============================================
 
         area_caja = (
@@ -3431,11 +3490,13 @@ def caja_turnos():
         if not area_caja:
             return jsonify({
                 'success': False,
-                'error': 'No se encontró el área de Caja'
+                'error': (
+                    'No se encontró el área de Caja'
+                )
             }), 404
 
         # =============================================
-        # 3. VALIDAR QUE CAJA OPERE EN ESTA SEDE
+        # 3. VALIDAR DISPONIBILIDAD EN SEDE
         # =============================================
 
         if not area_disponible_en_sede(
@@ -3445,178 +3506,52 @@ def caja_turnos():
             return jsonify({
                 'success': False,
                 'error': (
-                    f'El área Caja no está disponible '
-                    f'en la sede {sede.nombre}'
+                    f'El área {area_caja.nombre} '
+                    f'no está disponible en la sede '
+                    f'{sede.nombre}'
                 )
             }), 409
 
         # =============================================
-        # 4. BUSCAR TURNOS ACTIVOS DE ESTA SEDE
+        # 4. OBTENER COLA USANDO EL CORE GENÉRICO
         # =============================================
 
-        turnos = (
-            TurnoArea.query
-            .join(
-                Atencion,
-                TurnoArea.atencion_id == Atencion.id
-            )
-            .filter(
-                TurnoArea.area_id == area_caja.id,
-
-                Atencion.sede_id == sede.id,
-
-                TurnoArea.estado.in_([
-                    'ESPERA',
-                    'LLAMADO',
-                    'EN_ATENCION'
-                ])
-            )
-            .order_by(
-                TurnoArea.prioridad_manual.desc(),
-                TurnoArea.fecha_entrada_cola.asc()
-            )
-            .all()
+        turnos = obtener_turnos_area_sede(
+            sede,
+            area_caja
         )
 
         # =============================================
-        # 5. PREPARAR RESPUESTA
+        # 5. RESPUESTA
         # =============================================
 
-        resultado = []
+        return jsonify({
+            'success': True,
 
-        for turno in turnos:
-            atencion = turno.atencion
+            'sede': (
+                sede.to_dict()
+            ),
 
-            if not atencion:
-                continue
+            'area': {
+                'id': area_caja.id,
+                'codigo': area_caja.codigo,
+                'nombre': area_caja.nombre
+            },
 
-            paciente = atencion.paciente
+            'total': len(
+                turnos
+            ),
 
-            # =========================================
-            # SERVICIOS DE LA ATENCIÓN
-            # =========================================
-
-            atencion_servicios = (
-                AtencionServicio.query
-                .filter_by(
-                    atencion_id=atencion.id
-                )
-                .order_by(
-                    AtencionServicio.orden.asc(),
-                    AtencionServicio.id.asc()
-                )
-                .all()
+            'turnos': (
+                turnos
             )
+        })
 
-            servicios = []
-
-            for atencion_servicio in atencion_servicios:
-                servicio = db.session.get(
-                    Servicio,
-                    atencion_servicio.servicio_id
-                )
-
-                if not servicio:
-                    continue
-
-                servicios.append({
-                    'atencion_servicio_id': (
-                        atencion_servicio.id
-                    ),
-
-                    'servicio_id': (
-                        servicio.id
-                    ),
-
-                    'codigo': (
-                        servicio.codigo
-                    ),
-
-                    'nombre': (
-                        servicio.nombre
-                    ),
-
-                    'estado': (
-                        atencion_servicio.estado
-                    ),
-
-                    'pagado': (
-                        atencion_servicio.pagado
-                    ),
-
-                    'area_destino': (
-                        {
-                            'id': servicio.area.id,
-                            'codigo': servicio.area.codigo,
-                            'nombre': servicio.area.nombre
-                        }
-                        if servicio.area
-                        else None
-                    )
-                })
-
-            # =========================================
-            # TURNO
-            # =========================================
-
-            resultado.append({
-                'id': turno.id,
-
-                'numero_turno': (
-                    turno.numero_turno
-                ),
-
-                'estado': (
-                    turno.estado
-                ),
-
-                'tipo_prioridad': (
-                    turno.tipo_prioridad
-                ),
-
-                'fecha_entrada_cola': (
-                    turno.fecha_entrada_cola.isoformat()
-                    if turno.fecha_entrada_cola
-                    else None
-                ),
-
-                'atencion': {
-                    'id': atencion.id,
-                    'folio': atencion.folio,
-                    'sede_id': atencion.sede_id,
-                    'tipo_llegada': (
-                        atencion.tipo_llegada
-                    ),
-                    'nombre_paciente': (
-                        atencion.nombre_paciente
-                    )
-                },
-
-                'paciente': (
-                    {
-                        'id': paciente.id,
-
-                        'nombre_completo': (
-                            nombre_completo_paciente(
-                                paciente
-                            )
-                        ),
-
-                        'numero_afiliacion': (
-                            paciente.numero_afiliacion
-                        ),
-
-                        'afiliado': (
-                            paciente.afiliado
-                        )
-                    }
-                    if paciente
-                    else None
-                ),
-
-                'servicios': servicios
-            })
-
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
         # =============================================
         # 6. RESPUESTA
         # =============================================
