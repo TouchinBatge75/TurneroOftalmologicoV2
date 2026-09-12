@@ -17,7 +17,9 @@ from app.models import (
     HistorialTurno,
     Cita,
     Sede,
-    SedeArea
+    SedeArea,
+    ReglaDestinoInicial,
+    ReglaTransicion
 )
 
 
@@ -265,6 +267,209 @@ def area_disponible_en_sede(sede_id, area_id):
 
     return sede_area is not None
 
+def resolver_destino_inicial(
+    sede_id,
+    afiliado_actual
+):
+    """
+    Resuelve el primer destino de una atención
+    usando reglas configuradas en la base de datos.
+    """
+
+    condicion = (
+        'AFILIADO'
+        if afiliado_actual
+        else 'NO_AFILIADO'
+    )
+
+    regla = (
+        ReglaDestinoInicial.query
+        .filter(
+            ReglaDestinoInicial.sede_id == sede_id,
+            ReglaDestinoInicial.condicion == condicion,
+            ReglaDestinoInicial.activo.is_(True)
+        )
+        .order_by(
+            ReglaDestinoInicial.prioridad.desc(),
+            ReglaDestinoInicial.id.asc()
+        )
+        .first()
+    )
+
+    if not regla:
+        return {
+            'success': False,
+            'error': (
+                f'No existe una regla de destino inicial '
+                f'para la condición {condicion}'
+            ),
+            'status': 409
+        }
+
+    area = regla.area
+
+    if not area:
+        return {
+            'success': False,
+            'error': (
+                'La regla de destino inicial no tiene '
+                'un área válida asociada'
+            ),
+            'status': 500
+        }
+
+    if not area.activo:
+        return {
+            'success': False,
+            'error': (
+                f'El área {area.nombre} está inactiva'
+            ),
+            'status': 409
+        }
+
+    if not area_disponible_en_sede(
+        sede_id,
+        area.id
+    ):
+        return {
+            'success': False,
+            'error': (
+                f'El área {area.nombre} '
+                f'no está disponible en esta sede'
+            ),
+            'status': 409
+        }
+
+    servicio_cola_id = None
+
+    if regla.servicio_id:
+        servicio = regla.servicio
+
+        if not servicio:
+            return {
+                'success': False,
+                'error': (
+                    'La regla tiene un servicio asociado '
+                    'que no existe'
+                ),
+                'status': 500
+            }
+
+        configuracion_servicio = (
+            obtener_servicio_en_sede(
+                sede_id,
+                servicio.id
+            )
+        )
+
+        if not configuracion_servicio:
+            return {
+                'success': False,
+                'error': (
+                    f'El servicio {servicio.nombre} '
+                    f'no está disponible en esta sede'
+                ),
+                'status': 409
+            }
+
+        servicio_cola_id = servicio.id
+
+    return {
+        'success': True,
+        'area': area,
+        'servicio_cola_id': servicio_cola_id
+    }
+
+
+def resolver_transicion(
+    sede_id,
+    area_origen_id,
+    evento
+):
+    """
+    Resuelve el siguiente destino de una atención
+    según la sede, el área actual y el evento ocurrido.
+    """
+
+    regla = (
+        ReglaTransicion.query
+        .filter(
+            ReglaTransicion.sede_id == sede_id,
+            ReglaTransicion.area_origen_id == area_origen_id,
+            ReglaTransicion.evento == evento,
+            ReglaTransicion.activo.is_(True)
+        )
+        .order_by(
+            ReglaTransicion.prioridad.desc(),
+            ReglaTransicion.id.asc()
+        )
+        .first()
+    )
+
+    if not regla:
+        return {
+            'success': False,
+            'error': (
+                f'No existe una transición configurada '
+                f'para el evento {evento}'
+            ),
+            'status': 409
+        }
+
+    area_destino = regla.area_destino
+
+    if not area_destino:
+        return {
+            'success': False,
+            'error': (
+                'La transición no tiene un '
+                'área destino válida'
+            ),
+            'status': 500
+        }
+
+    if not area_disponible_en_sede(
+        sede_id,
+        area_destino.id
+    ):
+        return {
+            'success': False,
+            'error': (
+                f'El área {area_destino.nombre} '
+                f'no está disponible en esta sede'
+            ),
+            'status': 409
+        }
+
+    servicio_id = None
+
+    if regla.servicio_id:
+        configuracion_servicio = (
+            obtener_servicio_en_sede(
+                sede_id,
+                regla.servicio_id
+            )
+        )
+
+        if not configuracion_servicio:
+            return {
+                'success': False,
+                'error': (
+                    'El servicio configurado para '
+                    'la transición no está disponible '
+                    'en esta sede'
+                ),
+                'status': 409
+            }
+
+        servicio_id = regla.servicio_id
+
+    return {
+        'success': True,
+        'area_destino': area_destino,
+        'servicio_id': servicio_id
+    }
+
 def obtener_servicio_en_sede(sede_id, servicio_id):
     """
     Obtiene la configuración de un servicio
@@ -306,6 +511,120 @@ def obtener_servicio_en_sede(sede_id, servicio_id):
     )
 
     return servicio_sede
+
+
+def obtener_turnos_area_sede(sede, area):
+    """
+    Obtiene la cola activa de un área dentro de una sede.
+
+    Esta función es genérica: no depende de que el área sea
+    Caja, Trabajo Social, Gabinete, Recepción, etc.
+    """
+
+    turnos = (
+        TurnoArea.query
+        .join(
+            Atencion,
+            TurnoArea.atencion_id == Atencion.id
+        )
+        .filter(
+            TurnoArea.area_id == area.id,
+            Atencion.sede_id == sede.id,
+            TurnoArea.estado.in_([
+                'ESPERA',
+                'LLAMADO',
+                'EN_ATENCION'
+            ])
+        )
+        .order_by(
+            TurnoArea.prioridad_manual.desc(),
+            TurnoArea.fecha_entrada_cola.asc()
+        )
+        .all()
+    )
+
+    resultado = []
+
+    for turno in turnos:
+        atencion = turno.atencion
+
+        if not atencion:
+            continue
+
+        paciente = atencion.paciente
+
+        atencion_servicios = (
+            AtencionServicio.query
+            .filter_by(
+                atencion_id=atencion.id
+            )
+            .order_by(
+                AtencionServicio.orden.asc(),
+                AtencionServicio.id.asc()
+            )
+            .all()
+        )
+
+        servicios = []
+
+        for atencion_servicio in atencion_servicios:
+            servicio = atencion_servicio.servicio
+
+            if not servicio:
+                continue
+
+            servicios.append({
+                'atencion_servicio_id': atencion_servicio.id,
+                'servicio_id': servicio.id,
+                'codigo': servicio.codigo,
+                'nombre': servicio.nombre,
+                'estado': atencion_servicio.estado,
+                'modalidad': atencion_servicio.modalidad,
+                'area_destino': (
+                    {
+                        'id': servicio.area.id,
+                        'codigo': servicio.area.codigo,
+                        'nombre': servicio.area.nombre
+                    }
+                    if servicio.area
+                    else None
+                )
+            })
+
+        resultado.append({
+            'id': turno.id,
+            'numero_turno': turno.numero_turno,
+            'estado': turno.estado,
+            'tipo_prioridad': turno.tipo_prioridad,
+            'veces_omitido': turno.veces_omitido,
+            'fecha_entrada_cola': (
+                turno.fecha_entrada_cola.isoformat()
+                if turno.fecha_entrada_cola
+                else None
+            ),
+            'atencion': {
+                'id': atencion.id,
+                'folio': atencion.folio,
+                'sede_id': atencion.sede_id,
+                'tipo_llegada': atencion.tipo_llegada,
+                'nombre_paciente': atencion.nombre_paciente
+            },
+            'paciente': (
+                {
+                    'id': paciente.id,
+                    'nombre_completo': nombre_completo_paciente(
+                        paciente
+                    ),
+                    'numero_afiliacion': paciente.numero_afiliacion,
+                    'afiliado': paciente.afiliado
+                }
+                if paciente
+                else None
+            ),
+            'servicios': servicios
+        })
+
+    return resultado
 
 # =====================================================
 # API / PRUEBAS
@@ -423,6 +742,97 @@ def get_areas_sede(sede_id):
             ],
 
             'total': len(areas_sede)
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route(
+    '/sedes/<int:sede_id>/areas/<int:area_id>/turnos',
+    methods=['GET']
+)
+def turnos_area_sede(sede_id, area_id):
+    try:
+        # =============================================
+        # 1. VALIDAR SEDE
+        # =============================================
+
+        sede = db.session.get(
+            Sede,
+            sede_id
+        )
+
+        if not sede:
+            return jsonify({
+                'success': False,
+                'error': 'Sede no encontrada'
+            }), 404
+
+        if not sede.activo:
+            return jsonify({
+                'success': False,
+                'error': 'La sede está inactiva'
+            }), 409
+
+        # =============================================
+        # 2. VALIDAR ÁREA
+        # =============================================
+
+        area = db.session.get(
+            Area,
+            area_id
+        )
+
+        if not area:
+            return jsonify({
+                'success': False,
+                'error': 'Área no encontrada'
+            }), 404
+
+        # =============================================
+        # 3. VALIDAR ÁREA EN LA SEDE
+        # =============================================
+
+        if not area_disponible_en_sede(
+            sede.id,
+            area.id
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El área {area.nombre} '
+                    f'no está disponible en la sede '
+                    f'{sede.nombre}'
+                )
+            }), 409
+
+        # =============================================
+        # 4. OBTENER COLA
+        # =============================================
+
+        turnos = obtener_turnos_area_sede(
+            sede,
+            area
+        )
+
+        # =============================================
+        # 5. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'sede': sede.to_dict(),
+            'area': {
+                'id': area.id,
+                'codigo': area.codigo,
+                'nombre': area.nombre
+            },
+            'total': len(turnos),
+            'turnos': turnos
         })
 
     except Exception as e:
@@ -1414,79 +1824,29 @@ def registrar_control():
             })
 
         # =================================================
-        # DESTINO INICIAL
+        # RESOLVER DESTINO INICIAL
         # =================================================
 
-        if afiliado_actual:
-            codigo_area_destino = (
-                'CAJA'
-            )
-        else:
-            codigo_area_destino = (
-                'TRABAJO_SOCIAL'
-            )
-
-        area_destino = (
-            Area.query
-            .filter_by(
-                codigo=(
-                    codigo_area_destino
-                ),
-                activo=True
-            )
-            .first()
+        destino_inicial = resolver_destino_inicial(
+            sede.id,
+            afiliado_actual
         )
 
-        if not area_destino:
+        if not destino_inicial['success']:
             db.session.rollback()
 
             return jsonify({
                 'success': False,
-                'error': (
-                    f'No existe el área activa '
-                    f'{codigo_area_destino}'
-                )
-            }), 500
-                # =================================================
-        # VALIDAR DESTINO EN LA SEDE
-        # =================================================
+                'error': destino_inicial['error']
+            }), destino_inicial['status']
 
-        if not area_disponible_en_sede(
-            sede.id,
-            area_destino.id
-        ):
-            db.session.rollback()
+        area_destino = (
+            destino_inicial['area']
+        )
 
-            return jsonify({
-                'success': False,
-                'error': (
-                    f'El área {area_destino.nombre} '
-                    f'no está disponible en la sede '
-                    f'{sede.nombre}'
-                )
-            }), 409
-
-        # =================================================
-        # SERVICIO DE COLA
-        # =================================================
-
-        servicio_cola_id = None
-
-        if not afiliado_actual:
-            servicio_afiliacion = (
-                Servicio.query
-                .filter_by(
-                    codigo='AFILIACION',
-                    activo=True
-                )
-                .first()
-            )
-
-            if servicio_afiliacion:
-                servicio_cola_id = (
-                    servicio_afiliacion.id
-                )
-
+        servicio_cola_id = (
+            destino_inicial['servicio_cola_id']
+        )
         # =================================================
         # CREAR TURNO DE ÁREA
         # =================================================
@@ -2828,28 +3188,8 @@ def trabajo_social_afiliar(turno_id):
                 )
             }), 409
 
-        # =============================================
-        # 6. BUSCAR CAJA
-        # =============================================
-
-        area_caja = (
-            Area.query
-            .filter_by(
-                codigo='CAJA',
-                activo=True
-            )
-            .first()
-        )
-
-        if not area_caja:
-            return jsonify({
-                'success': False,
-                'error': (
-                    'No existe un área de Caja activa'
-                )
-            }), 500
-        # =============================================
-        # 7. VALIDAR QUE CAJA OPERE EN ESTA SEDE
+                # =============================================
+        # 6. RESOLVER SIGUIENTE DESTINO
         # =============================================
 
         if not atencion.sede_id:
@@ -2860,18 +3200,25 @@ def trabajo_social_afiliar(turno_id):
                 )
             }), 409
 
-        if not area_disponible_en_sede(
+        transicion = resolver_transicion(
             atencion.sede_id,
-            area_caja.id
-        ):
+            turno.area_id,
+            'AFILIACION_COMPLETADA'
+        )
+
+        if not transicion['success']:
             return jsonify({
                 'success': False,
-                'error': (
-                    'El área de Caja no está disponible '
-                    'en esta sede'
-                )
-            }), 409
+                'error': transicion['error']
+            }), transicion['status']
 
+        area_destino = (
+            transicion['area_destino']
+        )
+
+        servicio_destino_id = (
+            transicion['servicio_id']
+        )
         # =============================================
         # 8. AFILIAR AL PACIENTE
         # =============================================
@@ -2899,15 +3246,15 @@ def trabajo_social_afiliar(turno_id):
         turno.fecha_fin = ahora
 
         # =============================================
-        # 10. CREAR NUEVO TURNO EN CAJA
+        # 10. CREAR NUEVO TURNO EN ÁREA DESTINO
         # =============================================
 
         nuevo_turno = TurnoArea(
             atencion_id=atencion.id,
 
-            area_id=area_caja.id,
+            area_id=area_destino.id,
 
-            servicio_id=None,
+            servicio_id=servicio_destino_id,
 
             doctor_id=None,
 
@@ -2924,8 +3271,13 @@ def trabajo_social_afiliar(turno_id):
 
         db.session.flush()
 
+        prefijo = (
+            area_destino.codigo[:3]
+            .upper()
+        )
+
         nuevo_turno.numero_turno = (
-            f'CAJ-{nuevo_turno.id:04d}'
+            f'{prefijo}-{nuevo_turno.id:04d}'
         )
 
         # =============================================
@@ -2973,7 +3325,10 @@ def trabajo_social_afiliar(turno_id):
 
             estado_nuevo='ESPERA',
 
-            motivo='Paciente enviado a Caja',
+           motivo=(
+                f'Paciente enviado a '
+                f'{area_destino.nombre}'
+            ),
 
             usuario=usuario
         )
@@ -3000,7 +3355,8 @@ def trabajo_social_afiliar(turno_id):
             'success': True,
 
             'message': (
-                'Paciente afiliado y enviado a Caja'
+                f'Paciente afiliado y enviado a '
+                f'{area_destino.nombre}'
             ),
 
             'paciente': {

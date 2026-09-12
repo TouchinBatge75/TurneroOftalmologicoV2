@@ -284,6 +284,202 @@ class SedeArea(db.Model):
 
 
 # =====================================================
+# REGLAS DE DESTINO INICIAL
+# =====================================================
+
+class ReglaDestinoInicial(db.Model):
+    __tablename__ = 'reglas_destino_inicial'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    condicion = db.Column(
+        db.String(50),
+        nullable=False,
+        index=True
+    )
+
+    area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    servicio_id = db.Column(
+        db.Integer,
+        db.ForeignKey('servicios.id'),
+        nullable=True,
+        index=True
+    )
+
+    prioridad = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    sede = db.relationship(
+        'Sede'
+    )
+
+    area = db.relationship(
+        'Area'
+    )
+
+    servicio = db.relationship(
+        'Servicio'
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'sede_id',
+            'condicion',
+            'area_id',
+            'servicio_id',
+            name='uq_regla_destino_inicial'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sede_id': self.sede_id,
+            'condicion': self.condicion,
+            'area_id': self.area_id,
+            'servicio_id': self.servicio_id,
+            'prioridad': self.prioridad,
+            'activo': self.activo
+        }
+
+
+# =====================================================
+# REGLAS DE TRANSICIÓN ENTRE ÁREAS
+# =====================================================
+
+class ReglaTransicion(db.Model):
+    __tablename__ = 'reglas_transicion'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_origen_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    evento = db.Column(
+        db.String(80),
+        nullable=False,
+        index=True
+    )
+
+    area_destino_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    servicio_id = db.Column(
+        db.Integer,
+        db.ForeignKey('servicios.id'),
+        nullable=True,
+        index=True
+    )
+
+    prioridad = db.Column(
+        db.Integer,
+        nullable=False,
+        default=0
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    sede = db.relationship(
+        'Sede'
+    )
+
+    area_origen = db.relationship(
+        'Area',
+        foreign_keys=[area_origen_id]
+    )
+
+    area_destino = db.relationship(
+        'Area',
+        foreign_keys=[area_destino_id]
+    )
+
+    servicio = db.relationship(
+        'Servicio'
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'sede_id',
+            'area_origen_id',
+            'evento',
+            'area_destino_id',
+            'servicio_id',
+            name='uq_regla_transicion'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sede_id': self.sede_id,
+            'area_origen_id': self.area_origen_id,
+            'evento': self.evento,
+            'area_destino_id': self.area_destino_id,
+            'servicio_id': self.servicio_id,
+            'prioridad': self.prioridad,
+            'activo': self.activo
+        }
+
+# =====================================================
 # SERVICIOS
 # =====================================================
 
