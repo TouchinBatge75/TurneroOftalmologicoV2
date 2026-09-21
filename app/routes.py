@@ -4147,75 +4147,34 @@ def mover_turno(turno_id):
                 }), 404
 
         # =============================================
-        # 8. FINALIZAR TURNO ACTUAL
+        # 8. MOVER TURNO USANDO EL CORE
         # =============================================
 
-        ahora = datetime.utcnow()
-        estado_anterior = turno_actual.estado
+        usuario = (
+            data.get('usuario')
+            or 'sistema'
+        )
 
-        turno_actual.estado = 'FINALIZADO'
-        turno_actual.fecha_fin = ahora
-
-        # =============================================
-        # 9. CREAR NUEVO TURNO
-        # =============================================
-
-        nuevo_turno = TurnoArea(
-            atencion_id=turno_actual.atencion_id,
-            area_id=area_destino.id,
+        nuevo_turno = mover_turno_a_area(
+            turno_actual=turno_actual,
+            area_destino=area_destino,
             servicio_id=servicio_id,
             doctor_id=doctor_id,
-            numero_turno=generar_temporal(),
             tipo_prioridad=data.get(
-                'tipo_prioridad',
-                turno_actual.tipo_prioridad or 'NORMAL'
+                'tipo_prioridad'
             ),
-            estado='ESPERA'
-        )
-
-        db.session.add(nuevo_turno)
-        db.session.flush()
-
-        prefijo = (
-            area_destino.codigo[:3].upper()
-            if area_destino.codigo
-            else 'T'
-        )
-
-        nuevo_turno.numero_turno = (
-            f'{prefijo}-{nuevo_turno.id:04d}'
-        )
-
-        # =============================================
-        # 10. HISTORIAL
-        # =============================================
-
-        usuario = data.get('usuario', 'sistema')
-
-        historial_salida = HistorialTurno(
-            turno_area_id=turno_actual.id,
-            atencion_id=turno_actual.atencion_id,
-            accion='SALIDA_AREA',
-            estado_anterior=estado_anterior,
-            estado_nuevo='FINALIZADO',
-            motivo=data.get('motivo'),
+            motivo_salida=data.get(
+                'motivo'
+            ),
+            motivo_entrada=(
+                f'Derivado a '
+                f'{area_destino.nombre}'
+            ),
             usuario=usuario
         )
 
-        historial_entrada = HistorialTurno(
-            turno_area_id=nuevo_turno.id,
-            atencion_id=nuevo_turno.atencion_id,
-            accion='ENTRADA_AREA',
-            estado_nuevo='ESPERA',
-            motivo=f'Derivado a {area_destino.nombre}',
-            usuario=usuario
-        )
-
-        db.session.add(historial_salida)
-        db.session.add(historial_entrada)
-
         # =============================================
-        # 11. GUARDAR
+        # 9. GUARDAR
         # =============================================
 
         db.session.commit()
