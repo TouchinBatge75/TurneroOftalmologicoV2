@@ -1202,7 +1202,7 @@ def llamar_turno(turno_id):
             'success': False,
             'error': str(e)
         }), 500
-
+    
 
 @bp.route(
     '/turnos/<int:turno_id>/iniciar',
@@ -1376,6 +1376,234 @@ def omitir_turno(turno_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+@bp.route(
+    '/turnos/<int:turno_id>/finalizar',
+    methods=['POST']
+)
+def finalizar_turno(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = turno.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención asociada '
+                    'no fue encontrada'
+                )
+            }), 404
+
+        # =============================================
+        # 3. REVISAR SERVICIOS PENDIENTES
+        # =============================================
+
+        servicios_pendientes = (
+            AtencionServicio.query
+            .filter(
+                AtencionServicio.atencion_id
+                == atencion.id,
+
+                AtencionServicio.estado
+                == 'PENDIENTE'
+            )
+            .count()
+        )
+
+        if servicios_pendientes > 0:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención todavía tiene '
+                    'servicios pendientes'
+                ),
+                'servicios_pendientes': (
+                    servicios_pendientes
+                )
+            }), 409
+
+        # =============================================
+        # 4. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = (
+            data.get('usuario')
+            or 'sistema'
+        )
+
+        motivo = (
+            data.get('motivo')
+            or 'Recorrido del paciente finalizado'
+        )
+
+        # =============================================
+        # 5. FINALIZAR USANDO EL CORE
+        # =============================================
+
+        finalizar_atencion(
+            turno=turno,
+            usuario=usuario,
+            motivo=motivo
+        )
+
+        # =============================================
+        # 6. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 7. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Atención {atencion.folio} finalizada'
+            ),
+            'turno': serializar_turno_area(
+                turno
+            ),
+            'atencion': serializar_atencion(
+                atencion
+            )
+        })
+
+    except ValueError as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 409
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+def finalizar_atencion(
+    turno,
+    usuario='sistema',
+    motivo=None
+):
+    """
+    Finaliza el turno activo y la atención completa.
+
+    Se utiliza cuando el paciente ya no tiene
+    ningún otro destino dentro del Turnero.
+
+    Esta función NO hace commit.
+    """
+
+    if not turno:
+        raise ValueError(
+            'El turno es requerido'
+        )
+
+    if turno.estado != 'EN_ATENCION':
+        raise ValueError(
+            'Solo se puede finalizar una atención '
+            'que esté en curso'
+        )
+
+    atencion = turno.atencion
+
+    if not atencion:
+        raise ValueError(
+            'La atención asociada no fue encontrada'
+        )
+
+    if atencion.estado == 'FINALIZADA':
+        raise ValueError(
+            'La atención ya está finalizada'
+        )
+
+    usuario = str(
+        usuario or 'sistema'
+    ).strip()
+
+    motivo = (
+        motivo
+        or 'Recorrido del paciente finalizado'
+    )
+
+    ahora = datetime.utcnow()
+
+    estado_turno_anterior = turno.estado
+    estado_atencion_anterior = atencion.estado
+
+    # =============================================
+    # 1. FINALIZAR TURNO
+    # =============================================
+
+    turno.estado = 'FINALIZADO'
+    turno.fecha_fin = ahora
+
+    historial_turno = HistorialTurno(
+        turno_area_id=turno.id,
+        atencion_id=turno.atencion_id,
+        accion='SALIDA_AREA',
+        estado_anterior=estado_turno_anterior,
+        estado_nuevo='FINALIZADO',
+        motivo=motivo,
+        usuario=usuario
+    )
+
+    db.session.add(
+        historial_turno
+    )
+
+    # =============================================
+    # 2. FINALIZAR ATENCIÓN
+    # =============================================
+
+    atencion.estado = 'FINALIZADA'
+    atencion.fecha_hora_fin = ahora
+
+    historial_atencion = HistorialTurno(
+        turno_area_id=None,
+        atencion_id=atencion.id,
+        accion='ATENCION_FINALIZADA',
+        estado_anterior=estado_atencion_anterior,
+        estado_nuevo='FINALIZADA',
+        motivo=motivo,
+        usuario=usuario
+    )
+
+    db.session.add(
+        historial_atencion
+    )
+
+    return atencion
 
 @bp.route(
     '/sedes/<int:sede_id>/servicios',
