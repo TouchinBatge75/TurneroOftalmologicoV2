@@ -774,6 +774,130 @@ def mover_turno_a_area(
     # =============================================
 
     return nuevo_turno
+
+
+def aplicar_accion_turno(
+    turno,
+    accion,
+    usuario='sistema',
+    motivo=None
+):
+    """
+    Ejecuta una acción operativa sobre un TurnoArea.
+
+    Acciones soportadas:
+    - LLAMAR
+    - INICIAR
+    - OMITIR
+
+    No realiza commit.
+    """
+
+    if not turno:
+        raise ValueError(
+            'El turno es requerido'
+        )
+
+    accion = str(
+        accion or ''
+    ).strip().upper()
+
+    usuario = str(
+        usuario or 'sistema'
+    ).strip()
+
+    ahora = datetime.utcnow()
+    estado_anterior = turno.estado
+
+    # =============================================
+    # LLAMAR
+    # ESPERA -> LLAMADO
+    # =============================================
+
+    if accion == 'LLAMAR':
+
+        if turno.estado != 'ESPERA':
+            raise ValueError(
+                'Solo se puede llamar un turno '
+                'que esté en espera'
+            )
+
+        turno.estado = 'LLAMADO'
+        turno.fecha_llamado = ahora
+
+        accion_historial = 'TURNO_LLAMADO'
+
+    # =============================================
+    # INICIAR ATENCIÓN
+    # LLAMADO -> EN_ATENCION
+    # =============================================
+
+    elif accion == 'INICIAR':
+
+        if turno.estado != 'LLAMADO':
+            raise ValueError(
+                'Solo se puede iniciar un turno '
+                'que haya sido llamado'
+            )
+
+        turno.estado = 'EN_ATENCION'
+        turno.fecha_inicio = ahora
+
+        accion_historial = (
+            'ATENCION_INICIADA'
+        )
+
+    # =============================================
+    # OMITIR
+    # LLAMADO -> ESPERA
+    # =============================================
+
+    elif accion == 'OMITIR':
+
+        if turno.estado != 'LLAMADO':
+            raise ValueError(
+                'Solo se puede omitir un turno '
+                'que haya sido llamado'
+            )
+
+        turno.estado = 'ESPERA'
+
+        turno.veces_omitido = (
+            turno.veces_omitido or 0
+        ) + 1
+
+        turno.ultima_omision = ahora
+
+        accion_historial = 'TURNO_OMITIDO'
+
+    # =============================================
+    # ACCIÓN NO SOPORTADA
+    # =============================================
+
+    else:
+        raise ValueError(
+            f'Acción de turno no válida: {accion}'
+        )
+
+    # =============================================
+    # HISTORIAL
+    # =============================================
+
+    historial = HistorialTurno(
+        turno_area_id=turno.id,
+        atencion_id=turno.atencion_id,
+        accion=accion_historial,
+        estado_anterior=estado_anterior,
+        estado_nuevo=turno.estado,
+        motivo=motivo,
+        usuario=usuario
+    )
+
+    db.session.add(historial)
+
+    return turno
+
+
 # =====================================================
 # API / PRUEBAS
 # =====================================================
@@ -984,6 +1108,270 @@ def turnos_area_sede(sede_id, area_id):
         })
 
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =====================================================
+# ACCIONES GENÉRICAS DE TURNO
+# =====================================================
+
+@bp.route(
+    '/turnos/<int:turno_id>/llamar',
+    methods=['POST']
+)
+def llamar_turno(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 2. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = (
+            data.get('usuario')
+            or 'sistema'
+        )
+
+        motivo = data.get(
+            'motivo'
+        )
+
+        # =============================================
+        # 3. EJECUTAR ACCIÓN DEL CORE
+        # =============================================
+
+        aplicar_accion_turno(
+            turno=turno,
+            accion='LLAMAR',
+            usuario=usuario,
+            motivo=motivo
+        )
+
+        # =============================================
+        # 4. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 5. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Turno {turno.numero_turno} llamado'
+            ),
+            'turno': serializar_turno_area(
+                turno
+            )
+        })
+
+    except ValueError as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 409
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route(
+    '/turnos/<int:turno_id>/iniciar',
+    methods=['POST']
+)
+def iniciar_turno(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 2. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = (
+            data.get('usuario')
+            or 'sistema'
+        )
+
+        motivo = data.get(
+            'motivo'
+        )
+
+        # =============================================
+        # 3. EJECUTAR ACCIÓN DEL CORE
+        # =============================================
+
+        aplicar_accion_turno(
+            turno=turno,
+            accion='INICIAR',
+            usuario=usuario,
+            motivo=motivo
+        )
+
+        # =============================================
+        # 4. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 5. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Atención iniciada para '
+                f'{turno.numero_turno}'
+            ),
+            'turno': serializar_turno_area(
+                turno
+            )
+        })
+
+    except ValueError as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 409
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@bp.route(
+    '/turnos/<int:turno_id>/omitir',
+    methods=['POST']
+)
+def omitir_turno(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 2. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = (
+            data.get('usuario')
+            or 'sistema'
+        )
+
+        motivo = (
+            data.get('motivo')
+            or 'Paciente no respondió al llamado'
+        )
+
+        # =============================================
+        # 3. EJECUTAR ACCIÓN DEL CORE
+        # =============================================
+
+        aplicar_accion_turno(
+            turno=turno,
+            accion='OMITIR',
+            usuario=usuario,
+            motivo=motivo
+        )
+
+        # =============================================
+        # 4. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 5. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Turno {turno.numero_turno} omitido'
+            ),
+            'turno': serializar_turno_area(
+                turno
+            )
+        })
+
+    except ValueError as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 409
+
+    except Exception as e:
+        db.session.rollback()
+
         return jsonify({
             'success': False,
             'error': str(e)
