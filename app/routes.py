@@ -1510,6 +1510,174 @@ def finalizar_turno(turno_id):
         }), 500
 
 
+@bp.route(
+    '/turnos/<int:turno_id>/transicionar',
+    methods=['POST']
+)
+def transicionar_turno(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ESTADO
+        # =============================================
+
+        if turno.estado != 'EN_ATENCION':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Solo se puede transicionar '
+                    'un turno que esté en atención'
+                )
+            }), 409
+
+        # =============================================
+        # 3. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = turno.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención asociada '
+                    'no fue encontrada'
+                )
+            }), 404
+
+        if not atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene '
+                    'una sede asignada'
+                )
+            }), 409
+
+        # =============================================
+        # 4. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        evento = str(
+            data.get('evento')
+            or ''
+        ).strip().upper()
+
+        if not evento:
+            return jsonify({
+                'success': False,
+                'error': 'evento es requerido'
+            }), 400
+
+        usuario = (
+            data.get('usuario')
+            or 'sistema'
+        )
+
+        motivo = (
+            data.get('motivo')
+            or f'Evento {evento}'
+        )
+
+        # =============================================
+        # 5. RESOLVER TRANSICIÓN CONFIGURADA
+        # =============================================
+
+        transicion = resolver_transicion(
+            atencion.sede_id,
+            turno.area_id,
+            evento
+        )
+
+        if not transicion['success']:
+            return jsonify({
+                'success': False,
+                'error': transicion['error']
+            }), transicion['status']
+
+        area_destino = (
+            transicion['area_destino']
+        )
+
+        servicio_destino_id = (
+            transicion['servicio_id']
+        )
+
+        # =============================================
+        # 6. MOVER TURNO USANDO EL CORE
+        # =============================================
+
+        nuevo_turno = mover_turno_a_area(
+            turno_actual=turno,
+            area_destino=area_destino,
+            servicio_id=servicio_destino_id,
+            tipo_prioridad=data.get(
+                'tipo_prioridad'
+            ),
+            motivo_salida=motivo,
+            motivo_entrada=(
+                f'Evento {evento}. '
+                f'Enviado a {area_destino.nombre}'
+            ),
+            usuario=usuario
+        )
+
+        # =============================================
+        # 7. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 8. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Turno enviado a '
+                f'{area_destino.nombre}'
+            ),
+            'evento': evento,
+            'turno_anterior': {
+                'id': turno.id,
+                'numero': turno.numero_turno,
+                'estado': turno.estado
+            },
+            'turno_nuevo': (
+                serializar_turno_area(
+                    nuevo_turno
+                )
+            )
+        })
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 def finalizar_atencion(
     turno,
     usuario='sistema',
