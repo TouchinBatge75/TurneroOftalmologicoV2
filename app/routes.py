@@ -1678,6 +1678,508 @@ def transicionar_turno(turno_id):
         }), 500
 
 
+# =====================================================
+# SOLICITAR SERVICIO DESDE UN TURNO
+# =====================================================
+
+@bp.route(
+    '/turnos/<int:turno_id>/solicitar-servicio',
+    methods=['POST']
+)
+def solicitar_servicio_turno(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 2. SOLO DESDE UN TURNO EN ATENCIÓN
+        # =============================================
+
+        if turno.estado != 'EN_ATENCION':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Solo se puede solicitar un servicio '
+                    'desde un turno que esté en atención'
+                )
+            }), 409
+
+        # =============================================
+        # 3. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = turno.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención asociada '
+                    'no fue encontrada'
+                )
+            }), 404
+
+        if atencion.estado == 'FINALIZADA':
+            return jsonify({
+                'success': False,
+                'error': 'La atención ya está finalizada'
+            }), 409
+
+        if not atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene '
+                    'una sede asignada'
+                )
+            }), 409
+
+        # =============================================
+        # 4. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        servicio_id = data.get(
+            'servicio_id'
+        )
+
+        if not servicio_id:
+            return jsonify({
+                'success': False,
+                'error': 'servicio_id es requerido'
+            }), 400
+
+        try:
+            servicio_id = int(
+                servicio_id
+            )
+
+        except (
+            TypeError,
+            ValueError
+        ):
+            return jsonify({
+                'success': False,
+                'error': 'servicio_id no es válido'
+            }), 400
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        motivo = str(
+            data.get('motivo')
+            or ''
+        ).strip()
+
+        # =============================================
+        # 5. BUSCAR SERVICIO
+        # =============================================
+
+        servicio = db.session.get(
+            Servicio,
+            servicio_id
+        )
+
+        if not servicio:
+            return jsonify({
+                'success': False,
+                'error': 'Servicio no encontrado'
+            }), 404
+
+        if not servicio.activo:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El servicio {servicio.nombre} '
+                    f'está inactivo'
+                )
+            }), 409
+
+        # =============================================
+        # 6. CONFIGURACIÓN DEL SERVICIO EN LA SEDE
+        # =============================================
+
+        configuracion_servicio = (
+            obtener_servicio_en_sede(
+                atencion.sede_id,
+                servicio.id
+            )
+        )
+
+        if not configuracion_servicio:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El servicio {servicio.nombre} '
+                    f'no está disponible en esta sede'
+                )
+            }), 409
+
+        # =============================================
+        # 7. SERVICIO EXTERNO
+        # =============================================
+
+        if (
+            configuracion_servicio.modalidad
+            == 'EXTERNO'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El servicio {servicio.nombre} '
+                    f'está configurado como EXTERNO'
+                )
+            }), 409
+
+        # =============================================
+        # 8. EVITAR PENDIENTES DUPLICADOS
+        # =============================================
+
+        servicio_existente = (
+            AtencionServicio.query
+            .filter(
+                AtencionServicio.atencion_id
+                == atencion.id,
+
+                AtencionServicio.servicio_id
+                == servicio.id,
+
+                AtencionServicio.estado.notin_([
+                    'COMPLETADO',
+                    'CANCELADO'
+                ])
+            )
+            .first()
+        )
+
+        if servicio_existente:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El servicio {servicio.nombre} '
+                    f'ya está pendiente'
+                ),
+                'atencion_servicio_id': (
+                    servicio_existente.id
+                )
+            }), 409
+
+        # =============================================
+        # 9. CALCULAR ORDEN
+        # =============================================
+
+        ultimo_servicio = (
+            AtencionServicio.query
+            .filter(
+                AtencionServicio.atencion_id
+                == atencion.id,
+
+                AtencionServicio.orden.isnot(None)
+            )
+            .order_by(
+                AtencionServicio.orden.desc(),
+                AtencionServicio.id.desc()
+            )
+            .first()
+        )
+
+        orden = (
+            (ultimo_servicio.orden or 0) + 1
+            if ultimo_servicio
+            else 1
+        )
+
+        # =============================================
+        # 10. CREAR SERVICIO PENDIENTE
+        # =============================================
+
+        atencion_servicio = AtencionServicio(
+            atencion_id=atencion.id,
+            servicio_id=servicio.id,
+
+            origen=(
+                turno.area.codigo
+                if turno.area
+                else 'SISTEMA'
+            ),
+
+            estado='PENDIENTE',
+
+            modalidad=(
+                configuracion_servicio.modalidad
+                or 'INTERNO'
+            ),
+
+            requiere_pago=False,
+            pagado=False,
+
+            orden=orden
+        )
+
+        db.session.add(
+            atencion_servicio
+        )
+
+        db.session.flush()
+
+        # =============================================
+        # 11. DETERMINAR DESTINO
+        #
+        # SI HAY ÁREA PREVIA:
+        #   vamos primero allí.
+        #
+        # SI NO:
+        #   vamos directo al área ejecutora.
+        # =============================================
+
+        area_ejecutora = (
+            servicio.area
+        )
+
+        if not area_ejecutora:
+            db.session.rollback()
+
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El servicio no tiene '
+                    'un área ejecutora configurada'
+                )
+            }), 409
+
+        area_previa = (
+            configuracion_servicio.area_previa
+        )
+
+        if area_previa:
+
+            if not area_disponible_en_sede(
+                atencion.sede_id,
+                area_previa.id
+            ):
+                db.session.rollback()
+
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El área previa '
+                        f'{area_previa.nombre} '
+                        f'no está disponible '
+                        f'en esta sede'
+                    )
+                }), 409
+
+            area_destino = (
+                area_previa
+            )
+
+            tipo_destino = (
+                'AREA_PREVIA'
+            )
+
+        else:
+            area_destino = (
+                area_ejecutora
+            )
+
+            tipo_destino = (
+                'AREA_EJECUTORA'
+            )
+
+        # =============================================
+        # 12. HISTORIAL DEL SERVICIO
+        # =============================================
+
+        if not motivo:
+            motivo = (
+                f'Servicio solicitado: '
+                f'{servicio.nombre}'
+            )
+
+        historial = HistorialTurno(
+            turno_area_id=turno.id,
+            atencion_id=atencion.id,
+
+            accion='SERVICIO_SOLICITADO',
+
+            estado_nuevo='PENDIENTE',
+
+            motivo=motivo,
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        # =============================================
+        # 13. SI YA ESTAMOS EN EL DESTINO
+        # =============================================
+
+        if turno.area_id == area_destino.id:
+
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+
+                'message': (
+                    f'Servicio {servicio.nombre} '
+                    f'solicitado'
+                ),
+
+                'atencion_servicio': {
+                    'id': atencion_servicio.id,
+                    'servicio_id': servicio.id,
+                    'codigo': servicio.codigo,
+                    'nombre': servicio.nombre,
+                    'estado': (
+                        atencion_servicio.estado
+                    ),
+                    'modalidad': (
+                        atencion_servicio.modalidad
+                    )
+                },
+
+                'destino': {
+                    'tipo': tipo_destino,
+                    'area_id': area_destino.id,
+                    'codigo': area_destino.codigo,
+                    'nombre': area_destino.nombre
+                },
+
+                'area_ejecutora': {
+                    'id': area_ejecutora.id,
+                    'codigo': area_ejecutora.codigo,
+                    'nombre': area_ejecutora.nombre
+                },
+
+                'turno_actual': (
+                    serializar_turno_area(
+                        turno
+                    )
+                )
+            }), 201
+
+        # =============================================
+        # 14. MOVER AL DESTINO
+        # =============================================
+
+        nuevo_turno = mover_turno_a_area(
+            turno_actual=turno,
+            area_destino=area_destino,
+
+            # El servicio sigue siendo el motivo
+            # del recorrido aunque estemos todavía
+            # en el área previa.
+            servicio_id=servicio.id,
+
+            doctor_id=None,
+
+            tipo_prioridad=(
+                turno.tipo_prioridad
+            ),
+
+            motivo_salida=(
+                f'Servicio solicitado: '
+                f'{servicio.nombre}'
+            ),
+
+            motivo_entrada=(
+                f'Pendiente de continuar '
+                f'con {servicio.nombre}'
+            ),
+
+            usuario=usuario
+        )
+
+        # =============================================
+        # 15. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 16. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Servicio {servicio.nombre} '
+                f'solicitado. '
+                f'Paciente enviado a '
+                f'{area_destino.nombre}'
+            ),
+
+            'atencion_servicio': {
+                'id': atencion_servicio.id,
+                'servicio_id': servicio.id,
+                'codigo': servicio.codigo,
+                'nombre': servicio.nombre,
+                'estado': (
+                    atencion_servicio.estado
+                ),
+                'modalidad': (
+                    atencion_servicio.modalidad
+                ),
+                'orden': (
+                    atencion_servicio.orden
+                )
+            },
+
+            'destino': {
+                'tipo': tipo_destino,
+                'area_id': area_destino.id,
+                'codigo': area_destino.codigo,
+                'nombre': area_destino.nombre
+            },
+
+            'area_ejecutora': {
+                'id': area_ejecutora.id,
+                'codigo': area_ejecutora.codigo,
+                'nombre': area_ejecutora.nombre
+            },
+
+            'turno_anterior': {
+                'id': turno.id,
+                'numero': turno.numero_turno,
+                'estado': turno.estado
+            },
+
+            'turno_nuevo': (
+                serializar_turno_area(
+                    nuevo_turno
+                )
+            )
+        }), 201
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 def finalizar_atencion(
     turno,
     usuario='sistema',
