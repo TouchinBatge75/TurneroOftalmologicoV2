@@ -15,6 +15,7 @@ from app.models import (
     Servicio,
     ServicioSede,
     HistorialTurno,
+    PausaTurno,
     Cita,
     Sede,
     SedeArea,
@@ -1377,6 +1378,760 @@ def omitir_turno(turno_id):
             'error': str(e)
         }), 500
 
+
+# =====================================================
+# PAUSAR TURNO
+# EN_ATENCION -> PAUSADO
+# =====================================================
+
+@bp.route(
+    '/turnos/<int:turno_id>/pausar',
+    methods=['POST']
+)
+def pausar_turno(turno_id):
+    try:
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 1. VALIDAR ESTADO
+        # =============================================
+
+        if turno.estado == 'PAUSADO':
+            return jsonify({
+                'success': False,
+                'error': 'El turno ya está pausado'
+            }), 409
+
+        if turno.estado != 'EN_ATENCION':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Solo se puede pausar un turno '
+                    'que esté en atención'
+                )
+            }), 409
+
+        # =============================================
+        # 2. EVITAR DOS PAUSAS ABIERTAS
+        # =============================================
+
+        pausa_abierta = (
+            PausaTurno.query
+            .filter(
+                PausaTurno.turno_area_id
+                == turno.id,
+
+                PausaTurno.fecha_fin.is_(None)
+            )
+            .first()
+        )
+
+        if pausa_abierta:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Este turno ya tiene '
+                    'una pausa activa'
+                )
+            }), 409
+
+        # =============================================
+        # 3. DATOS RECIBIDOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        motivo_codigo = str(
+            data.get('motivo_codigo')
+            or 'OTRO'
+        ).strip().upper()
+
+        motivo = str(
+            data.get('motivo')
+            or ''
+        ).strip()
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        tiempo_minutos = (
+            data.get('tiempo_objetivo_minutos')
+        )
+
+        tiempo_segundos = None
+
+        # =============================================
+        # 4. VALIDAR TIMER OPCIONAL
+        # =============================================
+
+        if tiempo_minutos is not None:
+            try:
+                tiempo_minutos = int(
+                    tiempo_minutos
+                )
+            except (TypeError, ValueError):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'tiempo_objetivo_minutos '
+                        'debe ser un número entero'
+                    )
+                }), 400
+
+            if tiempo_minutos <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'tiempo_objetivo_minutos '
+                        'debe ser mayor a cero'
+                    )
+                }), 400
+
+            tiempo_segundos = (
+                tiempo_minutos * 60
+            )
+
+        # =============================================
+        # 5. CREAR PAUSA
+        # =============================================
+
+        ahora = datetime.utcnow()
+
+        pausa = PausaTurno(
+            turno_area_id=turno.id,
+            motivo_codigo=motivo_codigo,
+            motivo=motivo or None,
+            fecha_inicio=ahora,
+            tiempo_objetivo_segundos=(
+                tiempo_segundos
+            ),
+            usuario_inicio=usuario
+        )
+
+        db.session.add(
+            pausa
+        )
+
+        # =============================================
+        # 6. CAMBIAR ESTADO DEL TURNO
+        # =============================================
+
+        estado_anterior = turno.estado
+
+        turno.estado = 'PAUSADO'
+
+        # =============================================
+        # 7. HISTORIAL
+        # =============================================
+
+        historial = HistorialTurno(
+            turno_area_id=turno.id,
+            atencion_id=turno.atencion_id,
+            accion='TURNO_PAUSADO',
+            estado_anterior=estado_anterior,
+            estado_nuevo='PAUSADO',
+            motivo=(
+                motivo
+                or motivo_codigo
+            ),
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        # Necesitamos el ID de la pausa
+        # antes de construir la respuesta.
+        db.session.flush()
+
+        db.session.commit()
+
+        # =============================================
+        # 8. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Turno {turno.numero_turno} '
+                f'pausado'
+            ),
+
+            'turno': (
+                serializar_turno_area(
+                    turno
+                )
+            ),
+
+            'pausa': {
+                'id': pausa.id,
+                'turno_area_id': (
+                    pausa.turno_area_id
+                ),
+                'motivo_codigo': (
+                    pausa.motivo_codigo
+                ),
+                'motivo': pausa.motivo,
+
+                'fecha_inicio': (
+                    pausa.fecha_inicio.isoformat()
+                ),
+
+                'fecha_fin': None,
+
+                'tiempo_objetivo_segundos': (
+                    pausa
+                    .tiempo_objetivo_segundos
+                ),
+
+                'tiempo_objetivo_minutos': (
+                    pausa.tiempo_objetivo_segundos
+                    // 60
+                    if pausa.tiempo_objetivo_segundos
+                    is not None
+                    else None
+                )
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =====================================================
+# REANUDAR TURNO
+# PAUSADO -> EN_ATENCION
+# =====================================================
+
+@bp.route(
+    '/turnos/<int:turno_id>/reanudar',
+    methods=['POST']
+)
+def reanudar_turno(turno_id):
+    try:
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        # =============================================
+        # 1. VALIDAR ESTADO
+        # =============================================
+
+        if turno.estado != 'PAUSADO':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Solo se puede reanudar un turno '
+                    'que esté pausado'
+                )
+            }), 409
+
+        # =============================================
+        # 2. BUSCAR PAUSA ACTIVA
+        # =============================================
+
+        pausa = (
+            PausaTurno.query
+            .filter(
+                PausaTurno.turno_area_id
+                == turno.id,
+
+                PausaTurno.fecha_fin.is_(None)
+            )
+            .order_by(
+                PausaTurno.fecha_inicio.desc()
+            )
+            .first()
+        )
+
+        if not pausa:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El turno está marcado como pausado, '
+                    'pero no existe una pausa activa'
+                )
+            }), 409
+
+        # =============================================
+        # 3. DATOS RECIBIDOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        motivo = str(
+            data.get('motivo')
+            or 'Atención reanudada'
+        ).strip()
+
+        # =============================================
+        # 4. CERRAR PAUSA
+        # =============================================
+
+        ahora = datetime.utcnow()
+
+        pausa.fecha_fin = ahora
+        pausa.usuario_fin = usuario
+
+        duracion_segundos = int(
+            (
+                pausa.fecha_fin
+                - pausa.fecha_inicio
+            ).total_seconds()
+        )
+
+        # =============================================
+        # 5. CAMBIAR ESTADO DEL TURNO
+        # =============================================
+
+        estado_anterior = turno.estado
+
+        turno.estado = 'EN_ATENCION'
+
+        # =============================================
+        # 6. HISTORIAL
+        # =============================================
+
+        historial = HistorialTurno(
+            turno_area_id=turno.id,
+            atencion_id=turno.atencion_id,
+            accion='TURNO_REANUDADO',
+            estado_anterior=estado_anterior,
+            estado_nuevo='EN_ATENCION',
+            motivo=motivo,
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        db.session.commit()
+
+        # =============================================
+        # 7. OBJETIVO DE TIEMPO
+        # =============================================
+
+        objetivo_cumplido = None
+
+        if (
+            pausa.tiempo_objetivo_segundos
+            is not None
+        ):
+            objetivo_cumplido = (
+                duracion_segundos
+                >= pausa.tiempo_objetivo_segundos
+            )
+
+        # =============================================
+        # 8. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Atención reanudada para '
+                f'{turno.numero_turno}'
+            ),
+
+            'turno': (
+                serializar_turno_area(
+                    turno
+                )
+            ),
+
+            'pausa': {
+                'id': pausa.id,
+
+                'motivo_codigo': (
+                    pausa.motivo_codigo
+                ),
+
+                'motivo': pausa.motivo,
+
+                'fecha_inicio': (
+                    pausa.fecha_inicio.isoformat()
+                ),
+
+                'fecha_fin': (
+                    pausa.fecha_fin.isoformat()
+                ),
+
+                'duracion_segundos': (
+                    duracion_segundos
+                ),
+
+                'tiempo_objetivo_segundos': (
+                    pausa
+                    .tiempo_objetivo_segundos
+                ),
+
+                'objetivo_cumplido': (
+                    objetivo_cumplido
+                )
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =====================================================
+# AJUSTAR TIEMPO DE PAUSA
+# =====================================================
+
+@bp.route(
+    '/pausas/<int:pausa_id>/ajustar-tiempo',
+    methods=['PATCH']
+)
+def ajustar_tiempo_pausa(pausa_id):
+    try:
+        # =============================================
+        # 1. BUSCAR PAUSA
+        # =============================================
+
+        pausa = db.session.get(
+            PausaTurno,
+            pausa_id
+        )
+
+        if not pausa:
+            return jsonify({
+                'success': False,
+                'error': 'Pausa no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. SOLO PAUSAS ACTIVAS
+        # =============================================
+
+        if pausa.fecha_fin is not None:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No se puede modificar una pausa '
+                    'que ya terminó'
+                )
+            }), 409
+
+        turno = pausa.turno_area
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No se encontró el turno '
+                    'asociado a la pausa'
+                )
+            }), 404
+
+        if turno.estado != 'PAUSADO':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El turno asociado '
+                    'no se encuentra pausado'
+                )
+            }), 409
+
+        # =============================================
+        # 3. DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        nuevo_total_minutos = (
+            data.get('tiempo_objetivo_minutos')
+        )
+
+        ajuste_minutos = (
+            data.get('ajuste_minutos')
+        )
+
+        # Debe venir uno u otro,
+        # pero no ambos.
+        if (
+            nuevo_total_minutos is None
+            and ajuste_minutos is None
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Debes enviar '
+                    'tiempo_objetivo_minutos '
+                    'o ajuste_minutos'
+                )
+            }), 400
+
+        if (
+            nuevo_total_minutos is not None
+            and ajuste_minutos is not None
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Envía solo uno: '
+                    'tiempo_objetivo_minutos '
+                    'o ajuste_minutos'
+                )
+            }), 400
+
+        objetivo_anterior = (
+            pausa.tiempo_objetivo_segundos
+        )
+
+        # =============================================
+        # 4A. FIJAR NUEVO TOTAL
+        # =============================================
+
+        if nuevo_total_minutos is not None:
+            try:
+                nuevo_total_minutos = int(
+                    nuevo_total_minutos
+                )
+            except (TypeError, ValueError):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'tiempo_objetivo_minutos '
+                        'debe ser un número entero'
+                    )
+                }), 400
+
+            if nuevo_total_minutos <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'tiempo_objetivo_minutos '
+                        'debe ser mayor a cero'
+                    )
+                }), 400
+
+            nuevo_objetivo = (
+                nuevo_total_minutos * 60
+            )
+
+        # =============================================
+        # 4B. SUMAR O RESTAR MINUTOS
+        # =============================================
+
+        else:
+            try:
+                ajuste_minutos = int(
+                    ajuste_minutos
+                )
+            except (TypeError, ValueError):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'ajuste_minutos '
+                        'debe ser un número entero'
+                    )
+                }), 400
+
+            if objetivo_anterior is None:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'La pausa no tiene un '
+                        'tiempo objetivo actual. '
+                        'Primero establece uno.'
+                    )
+                }), 409
+
+            nuevo_objetivo = (
+                objetivo_anterior
+                + (ajuste_minutos * 60)
+            )
+
+            if nuevo_objetivo <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'El nuevo tiempo objetivo '
+                        'debe ser mayor a cero'
+                    )
+                }), 400
+
+        # =============================================
+        # 5. ACTUALIZAR
+        # =============================================
+
+        pausa.tiempo_objetivo_segundos = (
+            nuevo_objetivo
+        )
+
+        # =============================================
+        # 6. CALCULAR ESTADO DEL TIMER
+        # =============================================
+
+        ahora = datetime.utcnow()
+
+        transcurrido_segundos = max(
+            0,
+            int(
+                (
+                    ahora
+                    - pausa.fecha_inicio
+                ).total_seconds()
+            )
+        )
+
+        restante_segundos = max(
+            0,
+            nuevo_objetivo
+            - transcurrido_segundos
+        )
+
+        objetivo_cumplido = (
+            transcurrido_segundos
+            >= nuevo_objetivo
+        )
+
+        # =============================================
+        # 7. HISTORIAL
+        # =============================================
+
+        anterior_minutos = (
+            objetivo_anterior // 60
+            if objetivo_anterior is not None
+            else None
+        )
+
+        nuevo_minutos = (
+            nuevo_objetivo // 60
+        )
+
+        historial = HistorialTurno(
+            turno_area_id=turno.id,
+            atencion_id=turno.atencion_id,
+            accion='PAUSA_AJUSTADA',
+            estado_anterior='PAUSADO',
+            estado_nuevo='PAUSADO',
+            motivo=(
+                f'Tiempo objetivo ajustado '
+                f'de {anterior_minutos} '
+                f'a {nuevo_minutos} minutos'
+                if anterior_minutos is not None
+                else (
+                    f'Tiempo objetivo establecido '
+                    f'en {nuevo_minutos} minutos'
+                )
+            ),
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        db.session.commit()
+
+        # =============================================
+        # 8. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                'Tiempo de pausa actualizado'
+            ),
+
+            'pausa': {
+                'id': pausa.id,
+
+                'turno_area_id': (
+                    pausa.turno_area_id
+                ),
+
+                'motivo_codigo': (
+                    pausa.motivo_codigo
+                ),
+
+                'motivo': pausa.motivo,
+
+                'fecha_inicio': (
+                    pausa.fecha_inicio.isoformat()
+                ),
+
+                'tiempo_objetivo_segundos': (
+                    pausa.tiempo_objetivo_segundos
+                ),
+
+                'tiempo_objetivo_minutos': (
+                    pausa.tiempo_objetivo_segundos
+                    // 60
+                ),
+
+                'transcurrido_segundos': (
+                    transcurrido_segundos
+                ),
+
+                'restante_segundos': (
+                    restante_segundos
+                ),
+
+                'objetivo_cumplido': (
+                    objetivo_cumplido
+                )
+            }
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @bp.route(
     '/turnos/<int:turno_id>/finalizar',

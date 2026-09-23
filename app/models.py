@@ -1188,10 +1188,103 @@ class TurnoArea(db.Model):
         lazy=True
     )
 
+
+    pausas = db.relationship(
+        'PausaTurno',
+        back_populates='turno_area',
+        lazy=True
+    )
+
     def __repr__(self):
         return f'<TurnoArea {self.numero_turno}>'
 
 
+# =====================================================
+# PAUSAS DE TURNOS
+# Cada fila representa una pausa dentro de la atención
+# de un turno en un área.
+# =====================================================
+
+class PausaTurno(db.Model):
+    __tablename__ = 'pausas_turno'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    turno_area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('turnos_area.id'),
+        nullable=False,
+        index=True
+    )
+
+    # Código genérico para poder sacar estadísticas.
+    # Ejemplos:
+    # MEDICAMENTO
+    # EQUIPO
+    # PERSONAL
+    # RESULTADO
+    # OTRO
+    motivo_codigo = db.Column(
+        db.String(50),
+        nullable=False,
+        default='OTRO'
+    )
+
+    # Detalle libre opcional.
+    # Ejemplo: "Esperando efecto de gotas"
+    motivo = db.Column(
+        db.Text,
+        nullable=True
+    )
+
+    fecha_inicio = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    fecha_fin = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
+    # Si es NULL:
+    #   funciona como cronómetro.
+    #
+    # Si tiene valor:
+    #   funciona como cuenta regresiva.
+    #
+    # Ejemplo:
+    # 1200 = 20 minutos
+    tiempo_objetivo_segundos = db.Column(
+        db.Integer,
+        nullable=True
+    )
+
+    usuario_inicio = db.Column(
+        db.String(100),
+        nullable=True
+    )
+
+    usuario_fin = db.Column(
+        db.String(100),
+        nullable=True
+    )
+
+    turno_area = db.relationship(
+        'TurnoArea',
+        back_populates='pausas'
+    )
+
+    def __repr__(self):
+        return (
+            f'<PausaTurno '
+            f'{self.id} '
+            f'turno={self.turno_area_id}>'
+        )
 # =====================================================
 # HISTORIAL / TRAZABILIDAD
 # =====================================================
