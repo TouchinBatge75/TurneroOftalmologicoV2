@@ -575,6 +575,13 @@ class ServicioSede(db.Model):
         nullable=True
     )
 
+    area_previa_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=True,
+        index=True
+    )
+
     fecha_creacion = db.Column(
         db.DateTime,
         nullable=False,
@@ -590,6 +597,10 @@ class ServicioSede(db.Model):
         'Servicio',
         back_populates='sedes'
     )
+    area_previa = db.relationship(
+        'Area',
+        foreign_keys=[area_previa_id]
+    )
 
     __table_args__ = (
         db.UniqueConstraint(
@@ -604,7 +615,17 @@ class ServicioSede(db.Model):
             'id': self.id,
             'sede_id': self.sede_id,
             'servicio_id': self.servicio_id,
-
+            'area_previa_id': self.area_previa_id,
+            'area_previa': (
+                {
+                    'id': self.area_previa.id,
+                    'codigo': self.area_previa.codigo,
+                    'nombre': self.area_previa.nombre
+                }
+                if self.area_previa
+                else None
+            ),
+            
             'sede': (
                 self.sede.nombre
                 if self.sede

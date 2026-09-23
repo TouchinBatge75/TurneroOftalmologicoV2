@@ -235,11 +235,13 @@ VALUES
 
 ON CONFLICT (codigo) DO NOTHING;
 
-
 -- =====================================================
--- SERVICIOS POR SEDE
+-- SERVICIOS DISPONIBLES POR SEDE
+--
 -- Todos internos inicialmente.
 -- Córdoba: Cálculo LIO se maneja como EXTERNO.
+-- Córdoba: Refracción pasa primero por CAJA
+--          y después se realiza en GABINETE.
 -- =====================================================
 
 INSERT INTO servicio_sedes (
@@ -247,23 +249,65 @@ INSERT INTO servicio_sedes (
     servicio_id,
     disponible,
     modalidad,
+    area_previa_id,
     fecha_creacion
 )
 SELECT
     s.id,
     sv.id,
     TRUE,
+
     CASE
         WHEN s.codigo = 'CORDOBA'
              AND sv.codigo = 'CALCULO_LIO'
             THEN 'EXTERNO'
         ELSE 'INTERNO'
     END,
+
+    CASE
+        WHEN s.codigo = 'CORDOBA'
+             AND sv.codigo = 'REFRACCION'
+            THEN (
+                SELECT id
+                FROM areas
+                WHERE codigo = 'CAJA'
+                LIMIT 1
+            )
+        ELSE NULL
+    END,
+
     NOW()
+
 FROM sedes s
 CROSS JOIN servicios sv
-WHERE s.codigo IN ('ORIZABA', 'CORDOBA')
-ON CONFLICT (sede_id, servicio_id) DO NOTHING;
+
+WHERE s.codigo IN (
+    'ORIZABA',
+    'CORDOBA'
+)
+
+ON CONFLICT (
+    sede_id,
+    servicio_id
+)
+DO NOTHING;
+
+
+-- =====================================================
+-- ACTUALIZAR CONFIGURACIÓN DE PASOS PREVIOS
+-- EN INSTALACIONES QUE YA TENÍAN servicio_sedes
+-- =====================================================
+
+UPDATE servicio_sedes ss
+SET area_previa_id = a.id
+FROM sedes s,
+     servicios sv,
+     areas a
+WHERE ss.sede_id = s.id
+  AND ss.servicio_id = sv.id
+  AND s.codigo = 'CORDOBA'
+  AND sv.codigo = 'REFRACCION'
+  AND a.codigo = 'CAJA';
 
 
 -- =====================================================
