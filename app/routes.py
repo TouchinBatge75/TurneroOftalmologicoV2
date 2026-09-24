@@ -10,6 +10,7 @@ from app.models import (
     Paciente,
     Atencion,
     AtencionServicio,
+    SolicitudArea,
     TurnoArea,
     Area,
     Servicio,
@@ -171,6 +172,58 @@ def serializar_turno_area(turno):
 
         'veces_omitido': turno.veces_omitido
     }
+
+def serializar_solicitud_area(solicitud):
+    return {
+        'id': solicitud.id,
+        'atencion_id': solicitud.atencion_id,
+
+        'area_origen_id': solicitud.area_origen_id,
+        'area_origen': (
+            {
+                'id': solicitud.area_origen.id,
+                'codigo': solicitud.area_origen.codigo,
+                'nombre': solicitud.area_origen.nombre
+            }
+            if solicitud.area_origen
+            else None
+        ),
+
+        'area_destino_id': solicitud.area_destino_id,
+        'area_destino': (
+            {
+                'id': solicitud.area_destino.id,
+                'codigo': solicitud.area_destino.codigo,
+                'nombre': solicitud.area_destino.nombre
+            }
+            if solicitud.area_destino
+            else None
+        ),
+
+        'estado': solicitud.estado,
+        'prioridad': solicitud.prioridad,
+        'motivo': solicitud.motivo,
+        'creado_por': solicitud.creado_por,
+
+        'fecha_solicitud': (
+            solicitud.fecha_solicitud.isoformat()
+            if solicitud.fecha_solicitud
+            else None
+        ),
+
+        'fecha_inicio': (
+            solicitud.fecha_inicio.isoformat()
+            if solicitud.fecha_inicio
+            else None
+        ),
+
+        'fecha_fin': (
+            solicitud.fecha_fin.isoformat()
+            if solicitud.fecha_fin
+            else None
+        )
+    }
+
 
 def nombre_completo_paciente(paciente):
     partes = [
@@ -1203,7 +1256,7 @@ def llamar_turno(turno_id):
             'success': False,
             'error': str(e)
         }), 500
-    
+
 
 @bp.route(
     '/turnos/<int:turno_id>/iniciar',
@@ -2423,6 +2476,301 @@ def transicionar_turno(turno_id):
                 )
             )
         })
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# =====================================================
+# SOLICITAR ATENCIÓN EN OTRA ÁREA
+#
+# Crea trabajo pendiente para una atención.
+# IMPORTANTE:
+# Este endpoint NO mueve al paciente ni crea un TurnoArea.
+# =====================================================
+
+@bp.route(
+    '/turnos/<int:turno_id>/solicitudes-area',
+    methods=['POST']
+)
+def crear_solicitud_area(turno_id):
+    try:
+        # =============================================
+        # 1. BUSCAR TURNO ACTUAL
+        # =============================================
+
+        turno = db.session.get(
+            TurnoArea,
+            turno_id
+        )
+
+        if not turno:
+            return jsonify({
+                'success': False,
+                'error': 'Turno no encontrado'
+            }), 404
+
+        if turno.estado == 'FINALIZADO':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No se puede crear una solicitud '
+                    'desde un turno finalizado'
+                )
+            }), 409
+
+        # =============================================
+        # 2. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = turno.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención asociada '
+                    'no fue encontrada'
+                )
+            }), 404
+
+        if atencion.estado == 'FINALIZADA':
+            return jsonify({
+                'success': False,
+                'error': 'La atención ya está finalizada'
+            }), 409
+
+        if not atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene '
+                    'una sede asignada'
+                )
+            }), 409
+
+        # =============================================
+        # 3. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        area_destino_id = data.get(
+            'area_destino_id'
+        )
+
+        if area_destino_id is None:
+            return jsonify({
+                'success': False,
+                'error': 'area_destino_id es requerido'
+            }), 400
+
+        try:
+            area_destino_id = int(
+                area_destino_id
+            )
+        except (TypeError, ValueError):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'area_destino_id no es válido'
+                )
+            }), 400
+
+        prioridad = str(
+            data.get('prioridad')
+            or 'NORMAL'
+        ).strip().upper()
+
+        if not prioridad:
+            prioridad = 'NORMAL'
+
+        if len(prioridad) > 30:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'prioridad no puede superar '
+                    '30 caracteres'
+                )
+            }), 400
+
+        motivo = str(
+            data.get('motivo')
+            or ''
+        ).strip()
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        if not usuario:
+            usuario = 'sistema'
+
+        # =============================================
+        # 4. VALIDAR ÁREA DESTINO
+        # =============================================
+
+        area_destino = db.session.get(
+            Area,
+            area_destino_id
+        )
+
+        if not area_destino:
+            return jsonify({
+                'success': False,
+                'error': 'Área destino no encontrada'
+            }), 404
+
+        if not area_destino.activo:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El área {area_destino.nombre} '
+                    f'está inactiva'
+                )
+            }), 409
+
+        if not area_disponible_en_sede(
+            atencion.sede_id,
+            area_destino.id
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El área {area_destino.nombre} '
+                    f'no está disponible en esta sede'
+                )
+            }), 409
+
+        if turno.area_id == area_destino.id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El área destino no puede ser '
+                    'la misma área del turno actual'
+                )
+            }), 409
+
+        # =============================================
+        # 5. EVITAR SOLICITUDES ACTIVAS DUPLICADAS
+        # =============================================
+
+        solicitud_existente = (
+            SolicitudArea.query
+            .filter(
+                SolicitudArea.atencion_id
+                == atencion.id,
+
+                SolicitudArea.area_destino_id
+                == area_destino.id,
+
+                SolicitudArea.estado.in_([
+                    'PENDIENTE',
+                    'EN_PROCESO'
+                ])
+            )
+            .order_by(
+                SolicitudArea.id.desc()
+            )
+            .first()
+        )
+
+        if solicitud_existente:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'Ya existe una solicitud activa '
+                    f'para {area_destino.nombre}'
+                ),
+                'solicitud': (
+                    serializar_solicitud_area(
+                        solicitud_existente
+                    )
+                )
+            }), 409
+
+        # =============================================
+        # 6. CREAR SOLICITUD
+        #
+        # NO se toca el TurnoArea actual.
+        # El paciente permanece donde está.
+        # =============================================
+
+        solicitud = SolicitudArea(
+            atencion_id=atencion.id,
+            area_origen_id=turno.area_id,
+            area_destino_id=area_destino.id,
+            estado='PENDIENTE',
+            prioridad=prioridad,
+            motivo=motivo or None,
+            creado_por=usuario
+        )
+
+        db.session.add(
+            solicitud
+        )
+
+        db.session.flush()
+
+        # =============================================
+        # 7. TRAZABILIDAD
+        # =============================================
+
+        historial = HistorialTurno(
+            turno_area_id=turno.id,
+            atencion_id=atencion.id,
+            accion='SOLICITUD_AREA_CREADA',
+            estado_anterior=turno.estado,
+            estado_nuevo=turno.estado,
+            motivo=(
+                motivo
+                or (
+                    f'Solicitud creada para '
+                    f'{area_destino.nombre}'
+                )
+            ),
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        # =============================================
+        # 8. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 9. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Solicitud creada para '
+                f'{area_destino.nombre}'
+            ),
+            'solicitud': (
+                serializar_solicitud_area(
+                    solicitud
+                )
+            ),
+            'turno_actual': (
+                serializar_turno_area(
+                    turno
+                )
+            )
+        }), 201
 
     except Exception as e:
         db.session.rollback()
@@ -5107,7 +5455,7 @@ def get_turnos():
             'success': False,
             'error': str(e)
         }), 500
-        
+
 @bp.route('/trabajo-social/turnos', methods=['GET'])
 def trabajo_social_turnos():
     try:
