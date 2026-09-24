@@ -994,6 +994,13 @@ class Atencion(db.Model):
         lazy=True
     )
 
+    solicitudes_area = db.relationship(
+        'SolicitudArea',
+        back_populates='atencion',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
+
     turnos_area = db.relationship(
         'TurnoArea',
         back_populates='atencion',
@@ -1083,6 +1090,114 @@ class AtencionServicio(db.Model):
 
     def __repr__(self):
         return f'<AtencionServicio {self.id}>'
+
+
+# =====================================================
+# SOLICITUDES DE ÁREA
+#
+# Representa trabajo pendiente para una atención
+# dentro de un área.
+#
+# No representa necesariamente un estudio específico.
+# Ejemplo:
+# CONSULTA -> GABINETE
+# Motivo: Estudios solicitados
+# =====================================================
+
+class SolicitudArea(db.Model):
+    __tablename__ = 'solicitudes_area'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    atencion_id = db.Column(
+        db.Integer,
+        db.ForeignKey('atenciones.id'),
+        nullable=False,
+        index=True
+    )
+
+    # Área desde donde nació la solicitud.
+    # Puede ser NULL si fue creada por sistema,
+    # integración externa, recepción, etc.
+    area_origen_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=True,
+        index=True
+    )
+
+    # Área que realmente necesita atender
+    # al paciente.
+    area_destino_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    estado = db.Column(
+        db.String(30),
+        default='PENDIENTE',
+        nullable=False
+    )
+
+    prioridad = db.Column(
+        db.String(30),
+        default='NORMAL',
+        nullable=False
+    )
+
+    motivo = db.Column(
+        db.Text,
+        nullable=True
+    )
+
+    fecha_solicitud = db.Column(
+        db.DateTime,
+        default=datetime.utcnow,
+        nullable=False
+    )
+
+    fecha_inicio = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
+    fecha_fin = db.Column(
+        db.DateTime,
+        nullable=True
+    )
+
+    creado_por = db.Column(
+        db.String(100),
+        nullable=True
+    )
+
+    atencion = db.relationship(
+        'Atencion',
+        back_populates='solicitudes_area'
+    )
+
+    area_origen = db.relationship(
+        'Area',
+        foreign_keys=[area_origen_id]
+    )
+
+    area_destino = db.relationship(
+        'Area',
+        foreign_keys=[area_destino_id]
+    )
+
+    def __repr__(self):
+        return (
+            f'<SolicitudArea '
+            f'{self.id} '
+            f'atencion={self.atencion_id} '
+            f'destino={self.area_destino_id}>'
+        )
 
 
 # =====================================================
