@@ -2781,6 +2781,380 @@ def crear_solicitud_area(turno_id):
         }), 500
 
 
+
+# =====================================================
+# INICIAR SOLICITUD DE ÁREA
+#
+# Convierte una necesidad pendiente en el destino
+# operativo actual del paciente.
+#
+# PENDIENTE -> EN_PROCESO
+#
+# Si el paciente todavía está en otra área:
+# - finaliza el TurnoArea actual
+# - crea un nuevo TurnoArea en el área destino
+#
+# En esta etapa NO se aplican todavía pasos previos
+# como CAJA. Eso se resolverá posteriormente con
+# reglas de recorrido.
+# =====================================================
+
+@bp.route(
+    '/solicitudes-area/<int:solicitud_id>/iniciar',
+    methods=['POST']
+)
+def iniciar_solicitud_area(solicitud_id):
+    try:
+        # =============================================
+        # 1. BUSCAR SOLICITUD
+        # =============================================
+
+        solicitud = db.session.get(
+            SolicitudArea,
+            solicitud_id
+        )
+
+        if not solicitud:
+            return jsonify({
+                'success': False,
+                'error': 'Solicitud de área no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ESTADO
+        # =============================================
+
+        if solicitud.estado != 'PENDIENTE':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Solo se puede iniciar una solicitud '
+                    'que esté PENDIENTE'
+                )
+            }), 409
+
+        # =============================================
+        # 3. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = solicitud.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': 'Atención no encontrada'
+            }), 404
+
+        if atencion.estado == 'FINALIZADA':
+            return jsonify({
+                'success': False,
+                'error': 'La atención ya está finalizada'
+            }), 409
+
+        if not atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene una sede asignada'
+                )
+            }), 409
+
+        # =============================================
+        # 4. VALIDAR ÁREA DESTINO
+        # =============================================
+
+        area_destino = solicitud.area_destino
+
+        if not area_destino:
+            return jsonify({
+                'success': False,
+                'error': 'Área destino no encontrada'
+            }), 404
+
+        if not area_destino.activo:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El área {area_destino.nombre} '
+                    f'está inactiva'
+                )
+            }), 409
+
+        if not area_disponible_en_sede(
+            atencion.sede_id,
+            area_destino.id
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El área {area_destino.nombre} '
+                    f'no está disponible en esta sede'
+                )
+            }), 409
+
+        # =============================================
+        # 5. EVITAR DOS SOLICITUDES EN PROCESO
+        # =============================================
+
+        otra_en_proceso = (
+            SolicitudArea.query
+            .filter(
+                SolicitudArea.atencion_id == atencion.id,
+                SolicitudArea.id != solicitud.id,
+                SolicitudArea.estado == 'EN_PROCESO'
+            )
+            .first()
+        )
+
+        if otra_en_proceso:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención ya tiene otra '
+                    'solicitud de área en proceso'
+                ),
+                'solicitud_en_proceso': (
+                    serializar_solicitud_area(
+                        otra_en_proceso
+                    )
+                )
+            }), 409
+
+        # =============================================
+        # 6. BUSCAR TURNO ACTUAL
+        # =============================================
+
+        turno_actual = (
+            TurnoArea.query
+            .filter(
+                TurnoArea.atencion_id == atencion.id,
+                TurnoArea.estado.in_([
+                    'ESPERA',
+                    'LLAMADO',
+                    'EN_ATENCION',
+                    'PAUSADO'
+                ])
+            )
+            .order_by(
+                TurnoArea.id.desc()
+            )
+            .first()
+        )
+
+        if not turno_actual:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene '
+                    'un turno activo'
+                )
+            }), 409
+
+        # =============================================
+        # 7. NO MOVER UN TURNO PAUSADO
+        # =============================================
+
+        if turno_actual.estado == 'PAUSADO':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El turno actual está pausado. '
+                    'Debe reanudarse antes de mover '
+                    'al paciente a otra área.'
+                )
+            }), 409
+
+        # =============================================
+        # 8. DATOS DE LA OPERACIÓN
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        if not usuario:
+            usuario = 'sistema'
+
+        ahora = datetime.utcnow()
+
+        # =============================================
+        # 9. CASO ESPECIAL:
+        # YA ESTÁ EN EL ÁREA DESTINO
+        # =============================================
+
+        if turno_actual.area_id == area_destino.id:
+
+            solicitud.estado = 'EN_PROCESO'
+            solicitud.fecha_inicio = ahora
+
+            historial = HistorialTurno(
+                turno_area_id=turno_actual.id,
+                atencion_id=atencion.id,
+                accion='SOLICITUD_AREA_INICIADA',
+                estado_anterior=turno_actual.estado,
+                estado_nuevo=turno_actual.estado,
+                motivo=(
+                    f'Solicitud #{solicitud.id} '
+                    f'iniciada en {area_destino.nombre}'
+                ),
+                usuario=usuario
+            )
+
+            db.session.add(
+                historial
+            )
+
+            db.session.commit()
+
+            return jsonify({
+                'success': True,
+                'message': (
+                    'La solicitud fue iniciada. '
+                    'El paciente ya se encontraba '
+                    'en el área destino.'
+                ),
+                'solicitud': (
+                    serializar_solicitud_area(
+                        solicitud
+                    )
+                ),
+                'turno_actual': (
+                    serializar_turno_area(
+                        turno_actual
+                    )
+                )
+            }), 200
+
+        # =============================================
+        # 10. MOVER PACIENTE AL ÁREA DESTINO
+        # =============================================
+
+        estado_anterior_turno = (
+            turno_actual.estado
+        )
+
+        nuevo_turno = mover_turno_a_area(
+            turno_actual=turno_actual,
+            area_destino=area_destino,
+            servicio_id=None,
+            doctor_id=None,
+            tipo_prioridad=(
+                solicitud.prioridad
+                or turno_actual.tipo_prioridad
+                or 'NORMAL'
+            ),
+            motivo_salida=(
+                f'Inicio de solicitud de área '
+                f'#{solicitud.id}'
+            ),
+            motivo_entrada=(
+                f'Solicitud #{solicitud.id}: '
+                f'{solicitud.motivo}'
+                if solicitud.motivo
+                else (
+                    f'Inicio de solicitud '
+                    f'#{solicitud.id}'
+                )
+            ),
+            usuario=usuario
+        )
+
+        # =============================================
+        # 11. CAMBIAR ESTADO DE LA SOLICITUD
+        # =============================================
+
+        solicitud.estado = 'EN_PROCESO'
+        solicitud.fecha_inicio = ahora
+
+        # =============================================
+        # 12. HISTORIAL DE LA SOLICITUD
+        # =============================================
+
+        historial = HistorialTurno(
+            turno_area_id=nuevo_turno.id,
+            atencion_id=atencion.id,
+            accion='SOLICITUD_AREA_INICIADA',
+            estado_anterior='PENDIENTE',
+            estado_nuevo='EN_PROCESO',
+            motivo=(
+                f'Solicitud #{solicitud.id} '
+                f'iniciada hacia '
+                f'{area_destino.nombre}'
+            ),
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        # =============================================
+        # 13. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 14. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Solicitud #{solicitud.id} iniciada. '
+                f'Paciente enviado a '
+                f'{area_destino.nombre}'
+            ),
+
+            'solicitud': (
+                serializar_solicitud_area(
+                    solicitud
+                )
+            ),
+
+            'movimiento': {
+                'area_origen': (
+                    turno_actual.area.nombre
+                    if turno_actual.area
+                    else None
+                ),
+
+                'area_destino': (
+                    area_destino.nombre
+                ),
+
+                'estado_turno_anterior': (
+                    estado_anterior_turno
+                )
+            },
+
+            'turno_anterior': (
+                serializar_turno_area(
+                    turno_actual
+                )
+            ),
+
+            'turno_actual': (
+                serializar_turno_area(
+                    nuevo_turno
+                )
+            )
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # =====================================================
 # SOLICITAR SERVICIO DESDE UN TURNO
 # =====================================================
