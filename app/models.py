@@ -1176,6 +1176,36 @@ class SolicitudArea(db.Model):
         nullable=True
     )
 
+        # =================================================
+    # RETORNO OPCIONAL
+    # =================================================
+
+    tipo_retorno = db.Column(
+        db.String(30),
+        default='NINGUNO',
+        nullable=False
+    )
+
+    estado_retorno = db.Column(
+        db.String(30),
+        default='NO_APLICA',
+        nullable=False
+    )
+
+    area_retorno_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=True,
+        index=True
+    )
+
+    doctor_retorno_id = db.Column(
+        db.Integer,
+        db.ForeignKey('doctores.id'),
+        nullable=True,
+        index=True
+    )
+
     atencion = db.relationship(
         'Atencion',
         back_populates='solicitudes_area'
@@ -1189,6 +1219,16 @@ class SolicitudArea(db.Model):
     area_destino = db.relationship(
         'Area',
         foreign_keys=[area_destino_id]
+    )
+
+    area_retorno = db.relationship(
+        'Area',
+        foreign_keys=[area_retorno_id]
+    )
+
+    doctor_retorno = db.relationship(
+        'Doctor',
+        foreign_keys=[doctor_retorno_id]
     )
 
     def __repr__(self):
