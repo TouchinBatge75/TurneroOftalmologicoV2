@@ -3377,6 +3377,294 @@ def cancelar_solicitud_area(solicitud_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =====================================================
+# COMPLETAR SOLICITUD DE ÁREA
+#
+# Marca como completado el trabajo solicitado al área
+# destino y finaliza el TurnoArea correspondiente.
+#
+# IMPORTANTE:
+# Esto NO finaliza toda la Atencion.
+# Después podrá existir:
+# - otra solicitud pendiente
+# - retorno
+# - otro destino
+# - salida
+# =====================================================
+
+@bp.route(
+    '/solicitudes-area/<int:solicitud_id>/completar',
+    methods=['POST']
+)
+def completar_solicitud_area(solicitud_id):
+    try:
+        # =============================================
+        # 1. BUSCAR SOLICITUD
+        # =============================================
+
+        solicitud = db.session.get(
+            SolicitudArea,
+            solicitud_id
+        )
+
+        if not solicitud:
+            return jsonify({
+                'success': False,
+                'error': 'Solicitud de área no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ESTADO DE LA SOLICITUD
+        # =============================================
+
+        if solicitud.estado == 'COMPLETADA':
+            return jsonify({
+                'success': False,
+                'error': 'La solicitud ya está completada'
+            }), 409
+
+        if solicitud.estado == 'CANCELADA':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Una solicitud cancelada '
+                    'no puede completarse'
+                )
+            }), 409
+
+        if solicitud.estado != 'EN_PROCESO':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Solo se puede completar una solicitud '
+                    'que esté EN_PROCESO'
+                )
+            }), 409
+
+        # =============================================
+        # 3. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = solicitud.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': 'Atención no encontrada'
+            }), 404
+
+        if atencion.estado == 'FINALIZADA':
+            return jsonify({
+                'success': False,
+                'error': 'La atención ya está finalizada'
+            }), 409
+
+        # =============================================
+        # 4. BUSCAR TURNO ACTUAL
+        # =============================================
+
+        turno_actual = (
+            TurnoArea.query
+            .filter(
+                TurnoArea.atencion_id == atencion.id,
+                TurnoArea.estado.in_([
+                    'ESPERA',
+                    'LLAMADO',
+                    'EN_ATENCION',
+                    'PAUSADO'
+                ])
+            )
+            .order_by(
+                TurnoArea.id.desc()
+            )
+            .first()
+        )
+
+        if not turno_actual:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La atención no tiene '
+                    'un turno activo'
+                )
+            }), 409
+
+        # =============================================
+        # 5. VALIDAR QUE ESTÉ EN EL ÁREA DESTINO
+        # =============================================
+
+        if turno_actual.area_id != solicitud.area_destino_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El paciente no se encuentra '
+                    'actualmente en el área destino '
+                    'de esta solicitud'
+                ),
+                'area_actual_id': turno_actual.area_id,
+                'area_destino_id': solicitud.area_destino_id
+            }), 409
+
+        # =============================================
+        # 6. SOLO COMPLETAR DESDE EN_ATENCION
+        # =============================================
+
+        if turno_actual.estado != 'EN_ATENCION':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El turno debe estar EN_ATENCION '
+                    'antes de completar la solicitud'
+                ),
+                'estado_turno_actual': turno_actual.estado
+            }), 409
+
+        # =============================================
+        # 7. DATOS DE LA OPERACIÓN
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        if not usuario:
+            usuario = 'sistema'
+
+        observacion = str(
+            data.get('observacion')
+            or ''
+        ).strip()
+
+        ahora = datetime.utcnow()
+
+        # =============================================
+        # 8. FINALIZAR TURNO DEL ÁREA
+        # =============================================
+
+        estado_turno_anterior = turno_actual.estado
+
+        turno_actual.estado = 'FINALIZADO'
+        turno_actual.fecha_fin = ahora
+
+        historial_salida = HistorialTurno(
+            turno_area_id=turno_actual.id,
+            atencion_id=atencion.id,
+            accion='SALIDA_AREA',
+            estado_anterior=estado_turno_anterior,
+            estado_nuevo='FINALIZADO',
+            motivo=(
+                observacion
+                or (
+                    f'Solicitud #{solicitud.id} '
+                    f'completada en '
+                    f'{solicitud.area_destino.nombre}'
+                )
+            ),
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial_salida
+        )
+
+        # =============================================
+        # 9. COMPLETAR SOLICITUD
+        # =============================================
+
+        solicitud.estado = 'COMPLETADA'
+        solicitud.fecha_fin = ahora
+
+        historial_solicitud = HistorialTurno(
+            turno_area_id=turno_actual.id,
+            atencion_id=atencion.id,
+            accion='SOLICITUD_AREA_COMPLETADA',
+            estado_anterior='EN_PROCESO',
+            estado_nuevo='COMPLETADA',
+            motivo=(
+                observacion
+                or (
+                    f'Solicitud #{solicitud.id} '
+                    f'completada'
+                )
+            ),
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial_solicitud
+        )
+
+        # =============================================
+        # 10. BUSCAR SOLICITUDES PENDIENTES
+        #
+        # Solo informamos cuáles quedan.
+        # NO movemos al paciente todavía.
+        # =============================================
+
+        solicitudes_pendientes = (
+            SolicitudArea.query
+            .filter(
+                SolicitudArea.atencion_id == atencion.id,
+                SolicitudArea.estado == 'PENDIENTE'
+            )
+            .order_by(
+                SolicitudArea.fecha_solicitud.asc()
+            )
+            .all()
+        )
+
+        # =============================================
+        # 11. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 12. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Solicitud #{solicitud.id} completada'
+            ),
+
+            'solicitud': (
+                serializar_solicitud_area(
+                    solicitud
+                )
+            ),
+
+            'turno_finalizado': (
+                serializar_turno_area(
+                    turno_actual
+                )
+            ),
+
+            'solicitudes_pendientes': [
+                serializar_solicitud_area(item)
+                for item in solicitudes_pendientes
+            ],
+
+            'requiere_decision_siguiente': True
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    
 # =====================================================
 # SOLICITAR SERVICIO DESDE UN TURNO
 # =====================================================
