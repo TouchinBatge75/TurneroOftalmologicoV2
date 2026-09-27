@@ -3155,6 +3155,228 @@ def iniciar_solicitud_area(solicitud_id):
             'error': str(e)
         }), 500
 
+
+
+# =====================================================
+# CANCELAR SOLICITUD DE ÁREA
+#
+# Cancela una necesidad pendiente o en proceso.
+#
+# IMPORTANTE:
+# Cancelar la solicitud NO mueve ni finaliza
+# automáticamente el TurnoArea actual.
+# =====================================================
+
+@bp.route(
+    '/solicitudes-area/<int:solicitud_id>/cancelar',
+    methods=['POST']
+)
+def cancelar_solicitud_area(solicitud_id):
+    try:
+        # =============================================
+        # 1. BUSCAR SOLICITUD
+        # =============================================
+
+        solicitud = db.session.get(
+            SolicitudArea,
+            solicitud_id
+        )
+
+        if not solicitud:
+            return jsonify({
+                'success': False,
+                'error': 'Solicitud de área no encontrada'
+            }), 404
+
+        # =============================================
+        # 2. VALIDAR ESTADO
+        # =============================================
+
+        if solicitud.estado == 'CANCELADA':
+            return jsonify({
+                'success': False,
+                'error': 'La solicitud ya está cancelada'
+            }), 409
+
+        if solicitud.estado == 'COMPLETADA':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Una solicitud completada '
+                    'ya no puede cancelarse'
+                )
+            }), 409
+
+        if solicitud.estado not in (
+            'PENDIENTE',
+            'EN_PROCESO'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'No se puede cancelar una solicitud '
+                    f'en estado {solicitud.estado}'
+                )
+            }), 409
+
+        # =============================================
+        # 3. LEER DATOS
+        # =============================================
+
+        data = request.get_json(
+            silent=True
+        ) or {}
+
+        motivo_cancelacion = str(
+            data.get('motivo')
+            or ''
+        ).strip()
+
+        usuario = str(
+            data.get('usuario')
+            or 'sistema'
+        ).strip()
+
+        if not usuario:
+            usuario = 'sistema'
+
+        if not motivo_cancelacion:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Debe indicar el motivo '
+                    'de cancelación'
+                )
+            }), 400
+
+        # =============================================
+        # 4. VALIDAR ATENCIÓN
+        # =============================================
+
+        atencion = solicitud.atencion
+
+        if not atencion:
+            return jsonify({
+                'success': False,
+                'error': 'Atención no encontrada'
+            }), 404
+
+        # =============================================
+        # 5. LOCALIZAR TURNO ACTUAL
+        #
+        # Solo se utiliza como referencia para historial.
+        # NO se modifica.
+        # =============================================
+
+        turno_actual = (
+            TurnoArea.query
+            .filter(
+                TurnoArea.atencion_id == atencion.id,
+                TurnoArea.estado.in_([
+                    'ESPERA',
+                    'LLAMADO',
+                    'EN_ATENCION',
+                    'PAUSADO'
+                ])
+            )
+            .order_by(
+                TurnoArea.id.desc()
+            )
+            .first()
+        )
+
+        # Si por alguna razón ya no hay turno activo,
+        # tomamos el último turno conocido para conservar
+        # trazabilidad en el historial.
+        if not turno_actual:
+            turno_actual = (
+                TurnoArea.query
+                .filter(
+                    TurnoArea.atencion_id == atencion.id
+                )
+                .order_by(
+                    TurnoArea.id.desc()
+                )
+                .first()
+            )
+
+        if not turno_actual:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No existe ningún turno asociado '
+                    'a esta atención'
+                )
+            }), 409
+
+        # =============================================
+        # 6. CANCELAR SOLICITUD
+        # =============================================
+
+        estado_anterior = solicitud.estado
+
+        solicitud.estado = 'CANCELADA'
+        solicitud.fecha_fin = datetime.utcnow()
+
+        # =============================================
+        # 7. REGISTRAR HISTORIAL
+        # =============================================
+
+        historial = HistorialTurno(
+            turno_area_id=turno_actual.id,
+            atencion_id=atencion.id,
+            accion='SOLICITUD_AREA_CANCELADA',
+            estado_anterior=estado_anterior,
+            estado_nuevo='CANCELADA',
+            motivo=motivo_cancelacion,
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
+
+        # =============================================
+        # 8. GUARDAR
+        # =============================================
+
+        db.session.commit()
+
+        # =============================================
+        # 9. RESPUESTA
+        # =============================================
+
+        return jsonify({
+            'success': True,
+
+            'message': (
+                f'Solicitud #{solicitud.id} cancelada'
+            ),
+
+            'motivo_cancelacion': (
+                motivo_cancelacion
+            ),
+
+            'solicitud': (
+                serializar_solicitud_area(
+                    solicitud
+                )
+            ),
+
+            'turno_actual': (
+                serializar_turno_area(
+                    turno_actual
+                )
+            )
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 # =====================================================
 # SOLICITAR SERVICIO DESDE UN TURNO
 # =====================================================
