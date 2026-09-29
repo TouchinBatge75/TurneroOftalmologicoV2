@@ -227,6 +227,41 @@ def serializar_solicitud_area(solicitud):
             else None
         ),
 
+                'servicios': [
+            {
+                'atencion_servicio_id': item.id,
+                'servicio_id': item.servicio_id,
+
+                'codigo': (
+                    item.servicio.codigo
+                    if item.servicio
+                    else None
+                ),
+
+                'nombre': (
+                    item.servicio.nombre
+                    if item.servicio
+                    else None
+                ),
+
+                'estado': item.estado,
+                'modalidad': item.modalidad,
+                'requiere_pago': item.requiere_pago,
+                'pagado': item.pagado,
+                'orden': item.orden
+            }
+            for item in sorted(
+                solicitud.servicios,
+                key=lambda item: (
+                    item.orden
+                    if item.orden is not None
+                    else 999999,
+                    item.id
+                )
+            )
+        ],
+
+
         'fecha_solicitud': (
             solicitud.fecha_solicitud.isoformat()
             if solicitud.fecha_solicitud
@@ -701,6 +736,76 @@ def obtener_turnos_area_sede(sede, area):
         })
 
     return resultado
+
+def actualizar_estado_servicios_solicitud(
+    solicitud,
+    nuevo_estado,
+    usuario='sistema',
+    turno_area_id=None
+):
+    """
+    Actualiza todos los AtencionServicio asociados
+    a una SolicitudArea.
+
+    No realiza commit.
+    """
+
+    mapa_acciones = {
+        'EN_PROCESO': 'SERVICIO_INICIADO',
+        'COMPLETADO': 'SERVICIO_COMPLETADO',
+        'CANCELADO': 'SERVICIO_CANCELADO'
+    }
+
+    accion_historial = mapa_acciones.get(
+        nuevo_estado,
+        'SERVICIO_ESTADO_ACTUALIZADO'
+    )
+
+    for atencion_servicio in solicitud.servicios:
+
+        # Evitar modificar servicios que ya terminaron.
+        if atencion_servicio.estado in (
+            'COMPLETADO',
+            'CANCELADO'
+        ):
+            continue
+
+        estado_anterior = (
+            atencion_servicio.estado
+        )
+
+        atencion_servicio.estado = (
+            nuevo_estado
+        )
+
+        servicio = (
+            atencion_servicio.servicio
+        )
+
+        historial = HistorialTurno(
+            turno_area_id=turno_area_id,
+
+            atencion_id=solicitud.atencion_id,
+
+            accion=accion_historial,
+
+            estado_anterior=estado_anterior,
+
+            estado_nuevo=nuevo_estado,
+
+            motivo=(
+                f'Servicio '
+                f'{servicio.nombre if servicio else atencion_servicio.servicio_id} '
+                f'actualizado por solicitud '
+                f'#{solicitud.id}'
+            ),
+
+            usuario=usuario
+        )
+
+        db.session.add(
+            historial
+        )
 
 
 def mover_turno_a_area(
@@ -2726,6 +2831,13 @@ def iniciar_solicitud_area(solicitud_id):
             solicitud.estado = 'EN_PROCESO'
             solicitud.fecha_inicio = ahora
 
+            actualizar_estado_servicios_solicitud(
+                solicitud=solicitud,
+                nuevo_estado='EN_PROCESO',
+                usuario=usuario,
+                turno_area_id=turno_actual.id
+            )
+
             historial = HistorialTurno(
                 turno_area_id=turno_actual.id,
                 atencion_id=atencion.id,
@@ -2804,6 +2916,13 @@ def iniciar_solicitud_area(solicitud_id):
 
         solicitud.estado = 'EN_PROCESO'
         solicitud.fecha_inicio = ahora
+
+        actualizar_estado_servicios_solicitud(
+            solicitud=solicitud,
+            nuevo_estado='EN_PROCESO',
+            usuario=usuario,
+            turno_area_id=nuevo_turno.id
+        )
 
         # =============================================
         # 12. HISTORIAL DE LA SOLICITUD
@@ -3051,6 +3170,13 @@ def cancelar_solicitud_area(solicitud_id):
 
         solicitud.estado = 'CANCELADA'
         solicitud.fecha_fin = datetime.utcnow()
+
+        actualizar_estado_servicios_solicitud(
+            solicitud=solicitud,
+            nuevo_estado='CANCELADO',
+            usuario=usuario,
+            turno_area_id=turno_actual.id
+        )
 
         # =============================================
         # 7. REGISTRAR HISTORIAL
@@ -3314,6 +3440,13 @@ def completar_solicitud_area(solicitud_id):
 
         solicitud.estado = 'COMPLETADA'
         solicitud.fecha_fin = ahora
+
+        actualizar_estado_servicios_solicitud(
+            solicitud=solicitud,
+            nuevo_estado='COMPLETADO',
+            usuario=usuario,
+            turno_area_id=turno_actual.id
+        )
 
         historial_solicitud = HistorialTurno(
             turno_area_id=turno_actual.id,
@@ -7534,9 +7667,80 @@ def crear_solicitud_area(turno_id):
         if not usuario:
             usuario = 'sistema'
 
+               # =============================================
+        # 9. SERVICIOS SOLICITADOS
+        #
+        # Es opcional para conservar compatibilidad
+        # con solicitudes de área que no representen
+        # servicios específicos.
         # =============================================
-        # 9. VALIDAR ÁREA DESTINO
-        # =============================================
+
+        servicio_ids_raw = data.get(
+            'servicio_ids',
+            []
+        )
+
+        if servicio_ids_raw is None:
+            servicio_ids_raw = []
+
+        if not isinstance(
+            servicio_ids_raw,
+            list
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'servicio_ids debe ser '
+                    'una lista'
+                )
+            }), 400
+
+        servicio_ids = []
+
+        for valor in servicio_ids_raw:
+
+            if isinstance(valor, bool):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'Todos los elementos de '
+                        'servicio_ids deben ser '
+                        'identificadores válidos'
+                    )
+                }), 400
+
+            try:
+                servicio_id = int(
+                    valor
+                )
+
+            except (
+                TypeError,
+                ValueError
+            ):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'Todos los elementos de '
+                        'servicio_ids deben ser '
+                        'identificadores válidos'
+                    )
+                }), 400
+
+            if servicio_id <= 0:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'Los identificadores de servicio '
+                        'deben ser mayores a cero'
+                    )
+                }), 400
+
+            # Evitar duplicados conservando el orden.
+            if servicio_id not in servicio_ids:
+                servicio_ids.append(
+                    servicio_id
+                )
 
         area_destino = db.session.get(
             Area,
@@ -7580,6 +7784,79 @@ def crear_solicitud_area(turno_id):
                     'la misma área del turno actual'
                 )
             }), 409
+
+                # =============================================
+        # VALIDAR SERVICIOS SOLICITADOS
+        #
+        # Todos deben:
+        # - existir y estar disponibles en la sede
+        # - pertenecer al área destino de la solicitud
+        #
+        # Ejemplo:
+        #
+        # SolicitudArea -> GABINETE
+        #   - Refracción      OK
+        #   - Tonometría      OK
+        #
+        # No permitimos mezclar aquí un servicio
+        # perteneciente a otra área.
+        # =============================================
+
+        configuraciones_servicios = []
+
+        for servicio_id in servicio_ids:
+
+            configuracion_servicio = (
+                obtener_servicio_en_sede(
+                    atencion.sede_id,
+                    servicio_id
+                )
+            )
+
+            if not configuracion_servicio:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El servicio #{servicio_id} '
+                        f'no está disponible '
+                        f'en esta sede'
+                    )
+                }), 409
+
+            servicio = (
+                configuracion_servicio.servicio
+            )
+
+            if not servicio:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El servicio #{servicio_id} '
+                        f'no tiene una configuración válida'
+                    )
+                }), 409
+
+            if servicio.area_id != area_destino.id:
+
+                area_servicio = (
+                    servicio.area.nombre
+                    if servicio.area
+                    else 'sin área'
+                )
+
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'El servicio {servicio.nombre} '
+                        f'pertenece al área '
+                        f'{area_servicio} y no a '
+                        f'{area_destino.nombre}'
+                    )
+                }), 409
+
+            configuraciones_servicios.append(
+                configuracion_servicio
+            )
 
         # =============================================
         # 10. EVITAR SOLICITUDES ACTIVAS DUPLICADAS
@@ -7724,6 +8001,87 @@ def crear_solicitud_area(turno_id):
         # Necesitamos el ID antes del commit
         # para poder usarlo en trazabilidad.
         db.session.flush()
+
+                # =============================================
+        # CREAR SERVICIOS DE LA SOLICITUD
+        #
+        # Una SolicitudArea puede agrupar varios
+        # AtencionServicio.
+        # =============================================
+
+        ultimo_servicio = (
+            AtencionServicio.query
+            .filter(
+                AtencionServicio.atencion_id
+                == atencion.id,
+
+                AtencionServicio.orden.isnot(None)
+            )
+            .order_by(
+                AtencionServicio.orden.desc(),
+                AtencionServicio.id.desc()
+            )
+            .first()
+        )
+
+        siguiente_orden = (
+            (ultimo_servicio.orden or 0) + 1
+            if ultimo_servicio
+            else 1
+        )
+
+        servicios_creados = []
+
+        for configuracion_servicio in (
+            configuraciones_servicios
+        ):
+
+            servicio = (
+                configuracion_servicio.servicio
+            )
+
+            atencion_servicio = AtencionServicio(
+                atencion_id=atencion.id,
+
+                servicio_id=servicio.id,
+
+                solicitud_area_id=solicitud.id,
+
+                origen=(
+                    turno.area.codigo
+                    if turno.area
+                    else 'SISTEMA'
+                ),
+
+                estado='PENDIENTE',
+
+                modalidad=(
+                    configuracion_servicio.modalidad
+                    or 'INTERNO'
+                ),
+
+                requiere_pago=(
+                    bool(servicio.requiere_pago)
+                ),
+
+                pagado=False,
+
+                orden=siguiente_orden
+            )
+
+            db.session.add(
+                atencion_servicio
+            )
+
+            servicios_creados.append(
+                atencion_servicio
+            )
+
+            siguiente_orden += 1
+
+        # Generamos los IDs antes de continuar.
+        if servicios_creados:
+            db.session.flush()
 
         # =============================================
         # 13. TRAZABILIDAD

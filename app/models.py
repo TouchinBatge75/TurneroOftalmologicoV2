@@ -1079,6 +1079,13 @@ class AtencionServicio(db.Model):
         nullable=False
     )
 
+    solicitud_area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('solicitudes_area.id'),
+        nullable=True,
+        index=True
+    )
+
     atencion = db.relationship(
         'Atencion',
         back_populates='servicios'
@@ -1087,6 +1094,12 @@ class AtencionServicio(db.Model):
     servicio = db.relationship(
         'Servicio'
     )
+    # AtencionServicio
+    solicitud_area = db.relationship(
+        'SolicitudArea',
+        back_populates='servicios'
+    )
+    
 
     def __repr__(self):
         return f'<AtencionServicio {self.id}>'
@@ -1230,6 +1243,13 @@ class SolicitudArea(db.Model):
         'Doctor',
         foreign_keys=[doctor_retorno_id]
     )
+
+     # SolicitudArea
+    servicios = db.relationship(
+            'AtencionServicio',
+            back_populates='solicitud_area',
+            lazy=True
+            )
 
     def __repr__(self):
         return (
