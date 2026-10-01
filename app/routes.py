@@ -378,6 +378,172 @@ def area_disponible_en_sede(sede_id, area_id):
 
     return sede_area is not None
 
+
+def obtener_configuracion_area_sede(
+    sede_id,
+    area_id
+):
+    """
+    Obtiene la configuración activa de un área
+    dentro de una sede.
+
+    No modifica datos.
+    """
+
+    return (
+        SedeArea.query
+        .join(
+            Area,
+            SedeArea.area_id == Area.id
+        )
+        .filter(
+            SedeArea.sede_id == sede_id,
+            SedeArea.area_id == area_id,
+            SedeArea.activo.is_(True),
+            Area.activo.is_(True)
+        )
+        .first()
+    )
+
+def resolver_recorrido_area_sede(
+    sede_id,
+    area_destino_id
+):
+    """
+    Construye el recorrido requerido para llegar
+    a un área destino según la configuración
+    de SedeArea.area_previa_id.
+
+    Ejemplo:
+
+        GABINETE -> previa CAJA
+        CAJA      -> previa AUTORIZACIONES
+
+    Resultado:
+
+        AUTORIZACIONES -> CAJA -> GABINETE
+
+    No mueve turnos.
+    No modifica estados.
+    No realiza commit.
+    """
+
+    visitados = set()
+
+    recorrido_inverso = []
+
+    area_actual_id = area_destino_id
+
+    while area_actual_id:
+
+        # =============================================
+        # DETECTAR CICLOS
+        # =============================================
+
+        if area_actual_id in visitados:
+            return {
+                'valido': False,
+                'tipo': 'CICLO',
+                'error': (
+                    'Se detectó un ciclo en las reglas '
+                    'de recorrido de áreas'
+                ),
+                'area_id': area_actual_id
+            }
+
+        visitados.add(
+            area_actual_id
+        )
+
+        # =============================================
+        # OBTENER CONFIGURACIÓN DEL ÁREA
+        # =============================================
+
+        configuracion = (
+            obtener_configuracion_area_sede(
+                sede_id,
+                area_actual_id
+            )
+        )
+
+        if not configuracion:
+            return {
+                'valido': False,
+                'tipo': 'AREA_NO_DISPONIBLE',
+                'error': (
+                    f'El área {area_actual_id} '
+                    f'no está disponible '
+                    f'en la sede {sede_id}'
+                ),
+                'area_id': area_actual_id
+            }
+
+        area = configuracion.area
+
+        recorrido_inverso.append({
+            'sede_area_id': configuracion.id,
+
+            'area_id': configuracion.area_id,
+
+            'codigo': (
+                area.codigo
+                if area
+                else None
+            ),
+
+            'nombre': (
+                area.nombre
+                if area
+                else None
+            ),
+
+            'area_previa_id': (
+                configuracion.area_previa_id
+            )
+        })
+
+        # =============================================
+        # SI NO HAY PREVIA, TERMINAMOS
+        # =============================================
+
+        if not configuracion.area_previa_id:
+            break
+
+        # =============================================
+        # CONTINUAR HACIA EL ÁREA PREVIA
+        # =============================================
+
+        area_actual_id = (
+            configuracion.area_previa_id
+        )
+
+    # Construimos el recorrido en orden real:
+    #
+    # previa más lejana
+    #       ↓
+    # previa inmediata
+    #       ↓
+    # destino
+    #
+    recorrido = list(
+        reversed(
+            recorrido_inverso
+        )
+    )
+
+    return {
+        'valido': True,
+        'tipo': (
+            'DIRECTO'
+            if len(recorrido) == 1
+            else 'CON_AREAS_PREVIAS'
+        ),
+        'sede_id': sede_id,
+        'area_destino_id': area_destino_id,
+        'total_pasos': len(recorrido),
+        'recorrido': recorrido
+    }
+
 def resolver_destino_inicial(
     sede_id,
     afiliado_actual

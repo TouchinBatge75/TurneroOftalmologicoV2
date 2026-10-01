@@ -178,6 +178,7 @@ class Area(db.Model):
     sedes = db.relationship(
         'SedeArea',
         back_populates='area',
+        foreign_keys='SedeArea.area_id',
         cascade='all, delete-orphan',
         lazy=True
     )
@@ -211,6 +212,13 @@ class SedeArea(db.Model):
         index=True
     )
 
+    area_previa_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=True,
+        index=True
+    )
+
     activo = db.Column(
         db.Boolean,
         nullable=False,
@@ -236,7 +244,13 @@ class SedeArea(db.Model):
 
     area = db.relationship(
         'Area',
-        back_populates='sedes'
+        back_populates='sedes',
+        foreign_keys=[area_id]
+    )
+
+    area_previa = db.relationship(
+        'Area',
+        foreign_keys=[area_previa_id]
     )
 
     __table_args__ = (
@@ -262,6 +276,18 @@ class SedeArea(db.Model):
             'area': (
                 self.area.nombre
                 if self.area
+                else None
+            ),
+
+            'area_previa_id': self.area_previa_id,
+
+            'area_previa': (
+                {
+                    'id': self.area_previa.id,
+                    'codigo': self.area_previa.codigo,
+                    'nombre': self.area_previa.nombre
+                }
+                if self.area_previa
                 else None
             ),
 
