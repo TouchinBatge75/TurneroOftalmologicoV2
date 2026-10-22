@@ -2669,6 +2669,32 @@ def transicionar_turno(turno_id):
                 )
             }), 409
 
+                # =============================================
+        # 3.1 PROTEGER RECORRIDOS ACTIVOS
+        # =============================================
+
+        solicitud_en_recorrido = (
+            SolicitudArea.query
+            .filter(
+                SolicitudArea.atencion_id == atencion.id,
+                SolicitudArea.estado == 'PENDIENTE',
+                SolicitudArea.fecha_inicio.isnot(None)
+            )
+            .first()
+        )
+
+        if solicitud_en_recorrido:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El paciente tiene una solicitud '
+                    'con un recorrido pendiente. '
+                    'Debe completar sus pasos previos '
+                    'antes de realizar otra transición.'
+                ),
+                'solicitud_id': solicitud_en_recorrido.id
+            }), 409
+
         # =============================================
         # 4. LEER DATOS
         # =============================================
@@ -2721,7 +2747,81 @@ def transicionar_turno(turno_id):
         servicio_destino_id = (
             transicion['servicio_id']
         )
+        # =============================================
+        # 5.1 VALIDAR REQUISITOS DEL DESTINO
+        # =============================================
 
+        resultado_recorrido = resolver_recorrido_area_sede(
+            atencion.sede_id,
+            area_destino.id
+        )
+
+        if not resultado_recorrido.get('valido'):
+            return jsonify({
+                'success': False,
+                'error': resultado_recorrido.get(
+                    'error',
+                    'No se pudo resolver el recorrido'
+                )
+            }), 409
+
+        recorrido = resultado_recorrido['recorrido']
+
+        # Si el destino requiere áreas previas,
+        # no permitir que esta transición las omita.
+        if len(recorrido) > 1:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'El destino {area_destino.nombre} '
+                    'tiene requisitos previos. '
+                    'Debe utilizarse el recorrido '
+                    'de una solicitud de área.'
+                ),
+                'recorrido_requerido': [
+                    paso['codigo']
+                    for paso in recorrido
+                ]
+            }), 409
+
+
+        # =============================================
+        # 6. VALIDAR PAGOS ANTES DE AVANZAR
+        # =============================================
+
+        # La validación de pago se realiza únicamente
+        # al intentar ingresar al destino final.
+        llego_al_destino = (
+            siguiente_area_id == solicitud.area_destino_id
+        )
+
+        if llego_al_destino:
+
+            servicios_sin_pago = [
+                servicio
+                for servicio in solicitud.servicios
+                if servicio.requiere_pago
+                and not servicio.pagado
+            ]
+
+            if servicios_sin_pago:
+
+                nombres_servicios = [
+                    servicio.servicio.nombre
+                    if servicio.servicio
+                    else f'Servicio #{servicio.servicio_id}'
+                    for servicio in servicios_sin_pago
+                ]
+
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'No se puede avanzar a Gabinete. '
+                        'Existen servicios pendientes de pago.'
+                    ),
+                    'solicitud_id': solicitud.id,
+                    'servicios_pendientes': nombres_servicios
+                }), 409
         # =============================================
         # 6. MOVER TURNO USANDO EL CORE
         # =============================================
@@ -2825,7 +2925,7 @@ def iniciar_solicitud_area(solicitud_id):
                 'error': 'Solicitud de área no encontrada'
             }), 404
 
-        # =============================================
+                # =============================================
         # 2. VALIDAR ESTADO
         # =============================================
 
@@ -2838,6 +2938,18 @@ def iniciar_solicitud_area(solicitud_id):
                 )
             }), 409
 
+        # =============================================
+        # 2.1 EVITAR INICIAR DOS VECES
+        # =============================================
+
+        if solicitud.fecha_inicio is not None:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Esta solicitud ya inició su recorrido. '
+                    'No puede iniciarse nuevamente.'
+                )
+            }), 409
         # =============================================
         # 3. VALIDAR ATENCIÓN
         # =============================================
@@ -2906,7 +3018,13 @@ def iniciar_solicitud_area(solicitud_id):
             .filter(
                 SolicitudArea.atencion_id == atencion.id,
                 SolicitudArea.id != solicitud.id,
-                SolicitudArea.estado == 'EN_PROCESO'
+                db.or_(
+                    SolicitudArea.estado == 'EN_PROCESO',
+                    db.and_(
+                        SolicitudArea.estado == 'PENDIENTE',
+                        SolicitudArea.fecha_inicio.isnot(None)
+                    )
+                )
             )
             .first()
         )
@@ -2987,12 +3105,41 @@ def iniciar_solicitud_area(solicitud_id):
 
         ahora = datetime.utcnow()
 
+                # =============================================
+        # 8.1 RESOLVER RECORRIDO CONFIGURADO
+        # =============================================
+
+        resultado_recorrido = resolver_recorrido_area_sede(
+            atencion.sede_id,
+            area_destino.id
+        )
+
+        if not resultado_recorrido.get('valido'):
+            return jsonify({
+                'success': False,
+                'error': resultado_recorrido.get(
+                    'error',
+                    'No se pudo resolver el recorrido'
+                )
+            }), 409
+
+        recorrido = resultado_recorrido['recorrido']
+
+        primera_area_id = recorrido[0]['area_id']
+
+        area_primer_paso = db.session.get(
+            Area,
+            primera_area_id
+        )
+
         # =============================================
         # 9. CASO ESPECIAL:
         # YA ESTÁ EN EL ÁREA DESTINO
         # =============================================
-
-        if turno_actual.area_id == area_destino.id:
+        if (
+            turno_actual.area_id == area_destino.id
+            and len(recorrido) == 1
+        ):
 
             solicitud.estado = 'EN_PROCESO'
             solicitud.fecha_inicio = ahora
@@ -3043,6 +3190,43 @@ def iniciar_solicitud_area(solicitud_id):
             }), 200
 
         # =============================================
+        # 9.1 IDENTIFICAR TIPO DE MOVIMIENTO
+        # =============================================
+
+        es_destino_final = (
+            area_primer_paso.id == area_destino.id
+        )
+
+                # =============================================
+        # 9.2 EVITAR MOVIMIENTOS REPETIDOS
+        # =============================================
+
+        if turno_actual.area_id == area_primer_paso.id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El paciente ya se encuentra en '
+                    f'{area_primer_paso.nombre}. '
+                    'No se iniciará un movimiento duplicado. '
+                    'Debe verificarse el requisito pendiente.'
+                )
+            }), 409
+
+        if (
+            turno_actual.area_id == area_destino.id
+            and not es_destino_final
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El paciente ya está en el área destino, '
+                    'pero tiene requisitos previos configurados. '
+                    'No se puede iniciar la solicitud '
+                    'sin verificar el recorrido.'
+                )
+            }), 409
+
+        # =============================================
         # 10. MOVER PACIENTE AL ÁREA DESTINO
         # =============================================
 
@@ -3052,7 +3236,7 @@ def iniciar_solicitud_area(solicitud_id):
 
         nuevo_turno = mover_turno_a_area(
             turno_actual=turno_actual,
-            area_destino=area_destino,
+            area_destino=area_primer_paso,
             servicio_id=None,
             doctor_id=None,
             tipo_prioridad=(
@@ -3076,19 +3260,30 @@ def iniciar_solicitud_area(solicitud_id):
             usuario=usuario
         )
 
-        # =============================================
-        # 11. CAMBIAR ESTADO DE LA SOLICITUD
+               # =============================================
+        # 11. ACTUALIZAR SOLICITUD SEGÚN RECORRIDO
         # =============================================
 
-        solicitud.estado = 'EN_PROCESO'
         solicitud.fecha_inicio = ahora
 
-        actualizar_estado_servicios_solicitud(
-            solicitud=solicitud,
-            nuevo_estado='EN_PROCESO',
-            usuario=usuario,
-            turno_area_id=nuevo_turno.id
-        )
+        if es_destino_final:
+
+            # Llegó al área donde se realizará
+            # el trabajo solicitado.
+            solicitud.estado = 'EN_PROCESO'
+
+            actualizar_estado_servicios_solicitud(
+                solicitud=solicitud,
+                nuevo_estado='EN_PROCESO',
+                usuario=usuario,
+                turno_area_id=nuevo_turno.id
+            )
+
+        else:
+
+            # Está cumpliendo un requisito previo.
+            # Los servicios todavía no comienzan.
+            solicitud.estado = 'PENDIENTE'
 
         # =============================================
         # 12. HISTORIAL DE LA SOLICITUD
@@ -3097,13 +3292,21 @@ def iniciar_solicitud_area(solicitud_id):
         historial = HistorialTurno(
             turno_area_id=nuevo_turno.id,
             atencion_id=atencion.id,
-            accion='SOLICITUD_AREA_INICIADA',
+            accion=(
+                'SOLICITUD_AREA_INICIADA'
+                if es_destino_final
+                else 'SOLICITUD_RECORRIDO_INICIADO'
+            ),
             estado_anterior='PENDIENTE',
-            estado_nuevo='EN_PROCESO',
+            estado_nuevo=(
+                'EN_PROCESO'
+                if es_destino_final
+                else 'PENDIENTE'
+            ),
             motivo=(
-                f'Solicitud #{solicitud.id} '
-                f'iniciada hacia '
-                f'{area_destino.nombre}'
+                f'Solicitud #{solicitud.id}: '
+                f'paciente enviado a {area_primer_paso.nombre}. '
+                f'Destino final: {area_destino.nombre}'
             ),
             usuario=usuario
         )
@@ -3127,8 +3330,8 @@ def iniciar_solicitud_area(solicitud_id):
 
             'message': (
                 f'Solicitud #{solicitud.id} iniciada. '
-                f'Paciente enviado a '
-                f'{area_destino.nombre}'
+                f'Paciente enviado a {area_primer_paso.nombre}. '
+                f'Destino final: {area_destino.nombre}'
             ),
 
             'solicitud': (
@@ -3144,9 +3347,9 @@ def iniciar_solicitud_area(solicitud_id):
                     else None
                 ),
 
-                'area_destino': (
-                    area_destino.nombre
-                ),
+                'area_destino': area_primer_paso.nombre,
+                'area_final': area_destino.nombre,
+                'es_destino_final': es_destino_final,
 
                 'estado_turno_anterior': (
                     estado_anterior_turno
@@ -3174,7 +3377,231 @@ def iniciar_solicitud_area(solicitud_id):
             'error': str(e)
         }), 500
 
+# =====================================================
+# AVANZAR SOLICITUD DE ÁREA
+#
+# Confirma un paso previo del recorrido y mueve
+# al paciente hacia la siguiente área.
+#
+# No registra pagos.
+# No completa servicios.
+# =====================================================
 
+@bp.route(
+    '/solicitudes-area/<int:solicitud_id>/avanzar',
+    methods=['POST']
+)
+def avanzar_solicitud_area(solicitud_id):
+    try:
+        # 1. Buscar solicitud
+        solicitud = db.session.get(
+            SolicitudArea,
+            solicitud_id
+        )
+
+        if not solicitud:
+            return jsonify({
+                'success': False,
+                'error': 'Solicitud no encontrada'
+            }), 404
+
+        # 2. Validar recorrido iniciado
+        if (
+            solicitud.estado != 'PENDIENTE'
+            or solicitud.fecha_inicio is None
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La solicitud no tiene un recorrido '
+                    'pendiente de avanzar'
+                )
+            }), 409
+
+        atencion = solicitud.atencion
+
+        if not atencion or atencion.estado == 'FINALIZADA':
+            return jsonify({
+                'success': False,
+                'error': 'Atención no disponible'
+            }), 409
+
+        # 3. Buscar turno activo
+        turno_actual = (
+            TurnoArea.query
+            .filter(
+                TurnoArea.atencion_id == atencion.id,
+                TurnoArea.estado.in_([
+                    'ESPERA',
+                    'LLAMADO',
+                    'EN_ATENCION',
+                    'PAUSADO'
+                ])
+            )
+            .order_by(TurnoArea.id.desc())
+            .first()
+        )
+
+        if not turno_actual:
+            return jsonify({
+                'success': False,
+                'error': 'No existe turno activo'
+            }), 409
+
+        # El personal debe estar atendiendo al paciente.
+        if turno_actual.estado != 'EN_ATENCION':
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El turno debe estar EN_ATENCION '
+                    'para confirmar el paso previo'
+                )
+            }), 409
+
+        # 4. Resolver recorrido
+        resultado = resolver_recorrido_area_sede(
+            atencion.sede_id,
+            solicitud.area_destino_id
+        )
+
+        if not resultado.get('valido'):
+            return jsonify({
+                'success': False,
+                'error': resultado.get(
+                    'error',
+                    'Recorrido no disponible'
+                )
+            }), 409
+
+        recorrido = resultado['recorrido']
+        ids_areas = [
+            paso['area_id']
+            for paso in recorrido
+        ]
+
+        # El turno debe estar en un paso previo,
+        # no en el destino final.
+        if turno_actual.area_id not in ids_areas[:-1]:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El turno actual no corresponde '
+                    'a un requisito previo'
+                )
+            }), 409
+
+        indice_actual = ids_areas.index(
+            turno_actual.area_id
+        )
+
+        siguiente_area_id = ids_areas[
+            indice_actual + 1
+        ]
+
+        siguiente_area = db.session.get(
+            Area,
+            siguiente_area_id
+        )
+
+        if not siguiente_area:
+            return jsonify({
+                'success': False,
+                'error': 'Siguiente área no encontrada'
+            }), 409
+
+        # 5. Leer usuario
+        data = request.get_json(silent=True) or {}
+
+        usuario = str(
+            data.get('usuario') or 'sistema'
+        ).strip() or 'sistema'
+
+        # Confirmación expresa del operador.
+        if data.get('requisito_confirmado') is not True:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Debe confirmarse expresamente '
+                    'el requisito previo'
+                )
+            }), 400
+
+        # 6. Realizar movimiento
+        nuevo_turno = mover_turno_a_area(
+            turno_actual=turno_actual,
+            area_destino=siguiente_area,
+            tipo_prioridad=(
+                solicitud.prioridad
+                or turno_actual.tipo_prioridad
+                or 'NORMAL'
+            ),
+            motivo_salida=(
+                f'Requisito previo confirmado '
+                f'para solicitud #{solicitud.id}'
+            ),
+            motivo_entrada=(
+                f'Siguiente paso de solicitud '
+                f'#{solicitud.id}'
+            ),
+            usuario=usuario
+        )
+
+        # 7. Actualizar estado si llegó al destino
+        llego_al_destino = (
+            siguiente_area_id == solicitud.area_destino_id
+        )
+
+        if llego_al_destino:
+            solicitud.estado = 'EN_PROCESO'
+
+            actualizar_estado_servicios_solicitud(
+                solicitud=solicitud,
+                nuevo_estado='EN_PROCESO',
+                usuario=usuario,
+                turno_area_id=nuevo_turno.id
+            )
+
+        # 8. Registrar avance
+        db.session.add(
+            HistorialTurno(
+                turno_area_id=nuevo_turno.id,
+                atencion_id=atencion.id,
+                accion='SOLICITUD_RECORRIDO_AVANZADO',
+                estado_anterior='PENDIENTE',
+                estado_nuevo=solicitud.estado,
+                motivo=(
+                    f'Solicitud #{solicitud.id}: '
+                    f'{turno_actual.area.nombre} '
+                    f'→ {siguiente_area.nombre}'
+                ),
+                usuario=usuario
+            )
+        )
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': (
+                f'Paciente enviado a '
+                f'{siguiente_area.nombre}'
+            ),
+            'llego_al_destino': llego_al_destino,
+            'solicitud': serializar_solicitud_area(
+                solicitud
+            ),
+            'turno_actual': serializar_turno_area(
+                nuevo_turno
+            )
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # =====================================================
 # CANCELAR SOLICITUD DE ÁREA
