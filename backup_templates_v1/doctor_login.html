@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Doctor - Sistema de Turnos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .login-header p {
+            color: #7f8c8d;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        select, button {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        .btn-login {
+            background: linear-gradient(135deg, #2ecc71 0%, #1abc9c 100%);
+            color: white;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+        }
+
+        .consultorios-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .consultorio-card {
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .consultorio-card:hover {
+            border-color: #3498db;
+            transform: translateY(-2px);
+        }
+
+        .consultorio-card.seleccionado {
+            border-color: #2ecc71;
+            background: #f8fff9;
+        }
+
+        .consultorio-card.ocupado {
+            border-color: #e74c3c;
+            background: #fff8f8;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        .consultorio-numero {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 5px;
+        }
+
+        .consultorio-estado {
+            font-size: 12px;
+            color: #7f8c8d;
+        }
+
+        .consultorio-doctor {
+            font-size: 11px;
+            color: #e74c3c;
+            margin-top: 5px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+        }
+
+        .btn-actualizar {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: auto;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .btn-actualizar:hover {
+            background: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>👨‍⚕️ Login Doctor</h1>
+            <p>Selecciona tu nombre y consultorio</p>
+        </div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="doctorSelect">Seleccionar Doctor:</label>
+                <select id="doctorSelect" required>
+                    <option value="">Selecciona tu nombre</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Seleccionar Consultorio:</label>
+                <div class="consultorios-grid" id="consultoriosGrid">
+                    <div class="loading">Cargando consultorios...</div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-login">🚪 Iniciar Sesión</button>
+        </form>
+
+        <button onclick="forzarActualizacion()" class="btn-actualizar">
+            🔄 Actualizar Consultorios
+        </button>
+    </div>
+
+    <script>
+        let consultorioSeleccionado = null;
+        let consultorios = [];
+
+        // Cargar doctores y consultorios al iniciar - CORREGIDO
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarDoctores();
+            cargarConsultorios();
+            
+            
+            setInterval(cargarDoctores, 5000);
+            setInterval(cargarConsultorios, 3000);
+        });
+
+        function cargarDoctores() {
+    fetch('/api/doctores/todos')
+        .then(response => response.json())
+        .then(doctores => {
+            const select = document.getElementById('doctorSelect');
+            select.innerHTML = '<option value="">Selecciona tu nombre</option>';
+            
+            // Filtrar doctores que NO estén activos
+            const doctoresDisponibles = doctores.filter(doctor => 
+                doctor.activo === 0 || doctor.activo === false
+            );
+            
+            console.log(`👨‍⚕️ Doctores disponibles: ${doctoresDisponibles.length} de ${doctores.length}`);
+            
+            doctoresDisponibles.forEach(doctor => {
+                const option = document.createElement('option');
+                option.value = doctor.id;
+                option.textContent = doctor.nombre;
+                
+                if (doctor.especialidad) {
+                    option.textContent += ` - ${doctor.especialidad}`;
+                }
+                
+                select.appendChild(option);
+            });
+
+            if (doctoresDisponibles.length === 0) {
+                select.innerHTML = `
+                    <option value="">No hay doctores disponibles</option>
+                    <option value="" disabled>-- Todos están ocupados --</option>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error cargando doctores:', error);
+            document.getElementById('doctorSelect').innerHTML = 
+                '<option value="">Error cargando doctores</option>';
+        });
+}
+
+        function cargarConsultorios() {
+            console.log('🔄 Actualizando consultorios...');
+            fetch('/api/consultorios')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error en la respuesta del servidor');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('📋 Consultorios recibidos:', data);
+                    consultorios = data;
+                    mostrarConsultorios(data);
+                })
+                .catch(error => {
+                    console.error('Error cargando consultorios:', error);
+                    document.getElementById('consultoriosGrid').innerHTML = 
+                        '<div class="loading">Error cargando consultorios</div>';
+                });
+        }
+
+        function mostrarConsultorios(consultorios) {
+            const grid = document.getElementById('consultoriosGrid');
+            
+            if (!consultorios || consultorios.length === 0) {
+                grid.innerHTML = '<div class="loading">No hay consultorios disponibles</div>';
+                return;
+            }
+            
+            grid.innerHTML = consultorios.map(consultorio => {
+                const estaOcupado = consultorio.ocupado === 1;
+                const estaSeleccionado = consultorioSeleccionado === consultorio.id;
+                
+                let clases = 'consultorio-card';
+                if (estaOcupado) clases += ' ocupado';
+                if (estaSeleccionado) clases += ' seleccionado';
+                
+                // CORRECCIÓN: Mejor manejo del evento onclick
+                const onClick = estaOcupado ? 'return false;' : `seleccionarConsultorio(${consultorio.id})`;
+                
+                return `
+                    <div class="${clases}" onclick="${onClick}">
+                        <div class="consultorio-numero">${consultorio.numero}</div>
+                        <div class="consultorio-estado">
+                            ${estaOcupado ? '🔴 Ocupado' : '🟢 Disponible'}
+                        </div>
+                        ${estaOcupado && consultorio.doctor_nombre ? 
+                            `<div class="consultorio-doctor">Por: ${consultorio.doctor_nombre}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function seleccionarConsultorio(consultorioId) {
+            consultorioSeleccionado = consultorioId;
+            cargarConsultorios(); // Recargar para actualizar estilos
+        }
+
+        // Función para enviar el formulario de login
+       document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const doctorId = document.getElementById('doctorSelect').value;
+    const consultorioId = consultorioSeleccionado;
+    
+    console.log('🔐 Intentando login:', { doctorId, consultorioId });
+    
+    if (!doctorId) {
+        alert('Por favor selecciona tu nombre');
+        return;
+    }
+    
+    if (!consultorioId) {
+        alert('Por favor selecciona un consultorio');
+        return;
+    }
+    
+    // Verificar que el consultorio seleccionado no esté ocupado
+    const consultorio = consultorios.find(c => c.id === consultorioId);
+    if (consultorio && consultorio.ocupado) {
+        alert('Este consultorio ya está ocupado. Por favor selecciona otro.');
+        cargarConsultorios(); // Recargar estado
+        return;
+    }
+    
+    // Mostrar loading
+    const submitBtn = document.querySelector('.btn-login');
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = '⏳ Iniciando sesión...';
+    submitBtn.disabled = true;
+    
+    // Enviar datos de login - CORREGIDO: asegurar que son números
+    fetch('/api/doctor/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            doctor_id: parseInt(doctorId),
+            consultorio_id: parseInt(consultorioId),
+            estado: 'DISPONIBLE'
+        })
+    })
+    .then(response => {
+        console.log('📨 Status:', response.status);
+        return response.json().then(data => {
+            return { ok: response.ok, data: data };
+        });
+    })
+    .then(({ ok, data }) => {
+        console.log('📊 Datos recibidos:', data);
+        
+        if (ok && data.success) {
+            // GUARDAR DATOS CORRECTAMENTE - asegurar que son strings
+            sessionStorage.setItem('doctor_id', doctorId.toString());
+            sessionStorage.setItem('doctor_nombre', data.doctor_nombre.toString());
+            sessionStorage.setItem('consultorio_id', consultorioId.toString());
+            sessionStorage.setItem('consultorio_numero', data.consultorio_numero.toString());
+            
+            console.log('✅ Datos guardados en sessionStorage:');
+            console.log('   doctor_id:', sessionStorage.getItem('doctor_id'));
+            console.log('   doctor_nombre:', sessionStorage.getItem('doctor_nombre'));
+            console.log('   consultorio_id:', sessionStorage.getItem('consultorio_id'));
+            
+            // Pequeña pausa para asegurar que se guardan los datos
+            setTimeout(() => {
+                console.log('🔄 Redirigiendo a dashboard...');
+                window.location.href = '/doctor-dashboard';
+            }, 100);
+            
+        } else {
+            throw new Error(data.error || 'Error en el servidor');
+        }
+    })
+    .catch(error => {
+        console.error('❌ Error en login:', error);
+        alert('Error: ' + error.message);
+        cargarConsultorios(); // Recargar estado de consultorios
+    })
+    .finally(() => {
+        // Restaurar botón
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    });
+});
+
+        // Función para forzar actualización
+        function forzarActualizacion() {
+            cargarConsultorios();
+            alert('Consultorios actualizados');
+        }
+
+       
+
+    </script>
+</body>
+</html>

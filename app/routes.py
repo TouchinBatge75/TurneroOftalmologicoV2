@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy import or_, and_
+from sqlalchemy import text
 from flask_login import current_user, login_required
 
 from app import db
@@ -22,7 +23,8 @@ from app.models import (
     Sede,
     SedeArea,
     ReglaDestinoInicial,
-    ReglaTransicion
+    ReglaTransicion,
+    Notificacion,
 )
 
 
@@ -3388,6 +3390,11 @@ def iniciar_solicitud_area(solicitud_id):
 # No completa servicios.
 # =====================================================
 
+# BLOQUE PARA SUSTITUIR SOLO avanzar_solicitud_area EN app/routes.py
+# IMPORTS NECESARIOS EN app/routes.py:
+#     from sqlalchemy import text
+#     from app.models import Notificacion  # agregarlo a la lista existente
+# Los demás imports y funciones auxiliares ya deben existir.
 
 @bp.route(
     '/solicitudes-area/<int:solicitud_id>/avanzar',
@@ -3406,18 +3413,25 @@ def avanzar_solicitud_area(solicitud_id):
                 'error': 'Operador inactivo'
             }), 403
 
-        if current_user.rol not in ('ADMIN', 'CAJA'):
+        if current_user.rol not in ('ADMIN', 'RECEPCION'):
             return jsonify({
                 'success': False,
                 'error': (
-                    'No tiene permiso para '
-                    'autorizar desde Caja'
+                    'No tiene permiso para autorizar '
+                    'el movimiento del paciente'
                 )
             }), 403
 
         # =============================================
         # 2. BUSCAR SOLICITUD
         # =============================================
+
+        # Serializar autorizaciones concurrentes de la misma solicitud.
+        # El bloqueo dura hasta commit/rollback.
+        db.session.execute(
+            text("SELECT pg_advisory_xact_lock(731205, :solicitud_id)"),
+            {"solicitud_id": solicitud_id}
+        )
 
         solicitud = db.session.get(
             SolicitudArea,
@@ -3672,13 +3686,47 @@ def avanzar_solicitud_area(solicitud_id):
         )
 
         # =============================================
-        # 13. GUARDAR TRANSACCION
+        # 13. NOTIFICAR AL AREA QUE RECIBE EL PACIENTE
+        # =============================================
+        # No se notifica un area intermedia como si fuese
+        # Gabinete: se utiliza el siguiente destino real.
+        # La notificacion participa del mismo commit.
+
+        prioridad_notificacion = (
+            'URGENTE' if solicitud.prioridad == 'URGENTE'
+            else 'ALTA' if solicitud.prioridad == 'ALTA'
+            else 'NORMAL'
+        )
+
+        notificacion = Notificacion(
+            sede_id=atencion.sede_id,
+            area_origen_id=turno_actual.area_id,
+            area_destino_id=siguiente_area.id,
+            operador_origen_id=current_user.id,
+            atencion_id=atencion.id,
+            tipo='SOLICITUD_AREA_AUTORIZADA',
+            titulo='Paciente autorizado para atención',
+            mensaje=(
+                'Recepción / Caja autorizó el siguiente paso '
+                'de una solicitud. Consulte los turnos pendientes '
+                'de su área.'
+            ),
+            prioridad=prioridad_notificacion,
+            referencia_tipo='SOLICITUD_AREA',
+            referencia_id=solicitud.id,
+            activo=True
+        )
+
+        db.session.add(notificacion)
+
+        # =============================================
+        # 14. GUARDAR TRANSACCION
         # =============================================
 
         db.session.commit()
 
         # =============================================
-        # 14. RESPUESTA
+        # 15. RESPUESTA
         # =============================================
 
         return jsonify({
@@ -3689,6 +3737,7 @@ def avanzar_solicitud_area(solicitud_id):
             ),
             'llego_al_destino': llego_al_destino,
             'autorizado_por': usuario,
+            'notificacion_id': notificacion.id,
             'solicitud': serializar_solicitud_area(
                 solicitud
             ),
@@ -3705,6 +3754,7 @@ def avanzar_solicitud_area(solicitud_id):
             'success': False,
             'error': str(e)
         }), 500
+
 
 # =====================================================
 # CANCELAR SOLICITUD DE ÁREA
@@ -8199,13 +8249,20 @@ def crear_turno():
             'error': str(e)
         }), 500
 
-
-
 @bp.route(
     '/turnos/<int:turno_id>/solicitudes-area',
     methods=['POST']
 )
+@login_required
 def crear_solicitud_area(turno_id):
+
+    if current_user.rol != 'ADMIN':
+        return jsonify({
+            'success': False,
+            'error': 'No tiene permiso para crear solicitudes'
+        }), 403
+
+    
     try:
         # =============================================
         # 1. BUSCAR TURNO ACTUAL
@@ -8263,13 +8320,24 @@ def crear_solicitud_area(turno_id):
                 )
             }), 409
 
+        # Validar que el operador pertenece a la sede de la atención.
+        if current_user.sede_id != atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': 'No tiene permiso para operar en esta sede'
+            }), 403
+
         # =============================================
         # 3. LEER JSON
         # =============================================
 
-        data = request.get_json(
-            silent=True
-        ) or {}
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            return jsonify({
+                'success': False,
+                'error': 'Se requiere un objeto JSON válido'
+            }), 400
 
         # =============================================
         # 4. ÁREA DESTINO
@@ -8355,13 +8423,8 @@ def crear_solicitud_area(turno_id):
         # 8. USUARIO
         # =============================================
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
-
-        if not usuario:
-            usuario = 'sistema'
+        # Nunca confiar en el nombre de usuario enviado por JSON.
+        usuario = current_user.usuario
 
                # =============================================
         # 9. SERVICIOS SOLICITADOS
@@ -8810,13 +8873,64 @@ def crear_solicitud_area(turno_id):
         )
 
         # =============================================
-        # 14. GUARDAR
+        # 14. NOTIFICACIÓN AUTOMÁTICA A RECEPCIÓN / CAJA
+        # =============================================
+        # Solo para solicitudes originadas en CONSULTA.
+        # No mueve turnos ni confirma pagos.
+        # La notificación y la solicitud se guardan juntas.
+
+        if turno.area and turno.area.codigo == 'CONSULTA':
+            area_caja = Area.query.filter_by(
+                codigo='CAJA',
+                activo=True
+            ).first()
+
+            if area_caja is None or not area_disponible_en_sede(
+                atencion.sede_id,
+                area_caja.id if area_caja else -1
+            ):
+                db.session.rollback()
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'Recepción / Caja no está habilitada '
+                        'en esta sede; no se creó la solicitud'
+                    )
+                }), 409
+
+            # Las prioridades de las solicitudes pueden tener
+            # un catálogo diferente al de las notificaciones.
+            prioridad_notificacion = (
+                prioridad if prioridad in ('NORMAL', 'ALTA', 'URGENTE')
+                else 'NORMAL'
+            )
+
+            db.session.add(Notificacion(
+                sede_id=atencion.sede_id,
+                area_origen_id=turno.area_id,
+                area_destino_id=area_caja.id,
+                operador_origen_id=current_user.id,
+                atencion_id=atencion.id,
+                tipo='SOLICITUD_AREA_CREADA',
+                titulo='Nueva solicitud médica',
+                mensaje=(
+                    'Consulta Médica registró una solicitud '
+                    'pendiente de revisión en Recepción / Caja.'
+                ),
+                prioridad=prioridad_notificacion,
+                referencia_tipo='SOLICITUD_AREA',
+                referencia_id=solicitud.id,
+                activo=True
+            ))
+
+        # =============================================
+        # 15. GUARDAR LA TRANSACCIÓN
         # =============================================
 
         db.session.commit()
 
         # =============================================
-        # 15. RESPUESTA
+        # 16. RESPUESTA
         # =============================================
 
         return jsonify({
@@ -8847,6 +8961,7 @@ def crear_solicitud_area(turno_id):
             'success': False,
             'error': str(e)
         }), 500
+
 
 
 # =====================================================

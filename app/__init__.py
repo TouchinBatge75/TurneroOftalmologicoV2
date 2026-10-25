@@ -85,6 +85,23 @@ def create_app():
     from app import auth
     app.register_blueprint(auth.bp)
 
+    from app import admin_consultorios
+    app.register_blueprint(
+        admin_consultorios.bp_admin_consultorios
+    )
+
+    from app import admin_asignaciones
+
+    app.register_blueprint(
+        admin_asignaciones.bp_admin_asignaciones
+    )
+
+    from app import notificaciones
+
+    app.register_blueprint(
+        notificaciones.bp_notificaciones
+    )
+
     # =============================================
     # RUTAS DE INTERFAZ
     # =============================================

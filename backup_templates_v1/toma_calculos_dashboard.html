@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toma de Cálculos - Sistema de Turnos</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.2em;
+        }
+
+        .dashboard-content {
+            padding: 30px;
+        }
+
+        .card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            border-left: 4px solid #3498db;
+            margin-bottom: 20px;
+        }
+
+        .card h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .turnos-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .turno-card {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #2ecc71;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            transition: all 0.3s;
+        }
+
+        .turno-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+        }
+
+        .turno-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .turno-numero {
+            font-size: 1.4em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .tiempo-espera {
+            background: #e74c3c;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .tiempo-espera.normal {
+            background: #27ae60;
+        }
+
+        .paciente-info {
+            margin-bottom: 10px;
+        }
+
+        .paciente-nombre {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #34495e;
+            margin-bottom: 5px;
+        }
+
+        .paciente-detalles {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .estudios-lista {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .estudio-item {
+            padding: 3px 0;
+            color: #495057;
+        }
+
+        .btn-finalizar {
+            background: linear-gradient(135deg, #2ecc71 0%, #1abc9c 100%);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn-finalizar:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+        }
+
+        .sin-turnos {
+            text-align: center;
+            color: #7f8c8d;
+            padding: 60px 20px;
+            font-style: italic;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-activo {
+            background-color: #2ecc71;
+        }
+
+        .status-inactivo {
+            background-color: #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .turnos-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <div class="header">
+            <h1>🔬 Toma de Cálculos</h1>
+            <p>Recepción de pacientes para estudios oftalmológicos</p>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="card">
+                <h3>📋 Pacientes para Estudios</h3>
+                <div id="pacientes-lista">
+                    <div class="loading">Cargando pacientes...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>ℹ️ Instrucciones</h3>
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; border-left: 4px solid #2196f3;">
+                    <p><strong>Procedimiento:</strong></p>
+                    <ol style="margin-left: 20px; margin-top: 10px;">
+                        <li>El paciente llega a Toma de Cálculos desde Recepción</li>
+                        <li>Realiza los estudios oftalmológicos necesarios</li>
+                        <li>Presiona "✅ Finalizar Estudios" para enviar a Consulta</li>
+                        <li>El paciente regresa con el médico para revisión de resultados</li>
+                    </ol>
+                    <p style="margin-top: 10px; color: #666; font-style: italic;">
+                        📝 Nota: Los estudios se realizan físicamente, no se registran mediciones en el sistema.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let pacientes = [];
+
+        // Cargar pacientes al iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔬 Iniciando dashboard de Toma de Cálculos...');
+            cargarPacientesTomaCalculos();
+            setInterval(cargarPacientesTomaCalculos, 5000);
+        });
+
+        // Función para cargar pacientes en Toma de Cálculos
+        function cargarPacientesTomaCalculos() {
+            console.log('🔬 Cargando pacientes para Toma de Cálculos...');
+            
+            fetch('/api/turnos/por-estacion/3')
+                .then(response => {
+                    console.log('🔬 Respuesta status:', response.status);
+                    return response.json();
+                })
+                .then(turnos => {
+                    console.log('🔬 Turnos recibidos:', turnos);
+                    pacientes = turnos;
+                    mostrarPacientesTomaCalculos(turnos);
+                })
+                .catch(error => {
+                    console.error('❌ Error cargando pacientes:', error);
+                    document.getElementById('pacientes-lista').innerHTML = 
+                        '<div class="sin-turnos">Error cargando pacientes</div>';
+                });
+        }
+
+        // Función para mostrar pacientes en la lista
+        function mostrarPacientesTomaCalculos(turnos) {
+            const lista = document.getElementById('pacientes-lista');
+            
+            if (!turnos || turnos.length === 0) {
+                lista.innerHTML = `
+                    <div class="sin-turnos">
+                        <div style="font-size: 48px; margin-bottom: 10px;">😴</div>
+                        <p>No hay pacientes en espera</p>
+                        <p style="font-size: 12px;">Los pacientes aparecerán aquí cuando recepción confirme sus estudios</p>
+                    </div>
+                `;
+                return;
+            }
+        
+            lista.innerHTML = `
+                <div class="turnos-grid">
+                    ${turnos.map(turno => {
+                        let estudios = [];
+                        try {
+                            estudios = JSON.parse(turno.estudios_solicitados || '[]');
+                        } catch (e) {
+                            estudios = [];
+                        }
+                        
+                        const tiempoAlerta = (turno.tiempo_espera || 0) > 30;
+                        
+                        return `
+                            <div class="turno-card">
+                                <div class="turno-header">
+                                    <span class="turno-numero">${turno.numero}</span>
+                                    <span class="tiempo-espera ${tiempoAlerta ? '' : 'normal'}">
+                                        ${turno.tiempo_espera || 0} min
+                                    </span>
+                                </div>
+                                
+                                <div class="paciente-info">
+                                    <div class="paciente-nombre">${turno.paciente_nombre}</div>
+                                    <div class="paciente-detalles">
+                                        ${turno.paciente_edad} años | ${turno.doctor_nombre || 'Sin doctor asignado'}
+                                    </div>
+                                </div>
+                                
+                                ${estudios.length > 0 ? `
+                                    <div class="estudios-lista">
+                                        <strong>📋 Estudios a realizar:</strong>
+                                        ${estudios.map(estudio => `
+                                            <div class="estudio-item">• ${estudio}</div>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                                
+                                <button class="btn-finalizar" onclick="finalizarEstudios(${turno.id})">
+                                    ✅ Finalizar Estudios y Enviar a Consulta
+                                </button>
+                                
+                                ${tiempoAlerta ? `
+                                    <div style="color: #e74c3c; font-size: 12px; margin-top: 8px; text-align: center;">
+                                        ⚠️ Tiempo de espera prolongado
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        // Función para finalizar estudios (ENVÍA DIRECTAMENTE A CONSULTA)
+        function finalizarEstudios(turnoId) {
+            const paciente = pacientes.find(p => p.id === turnoId);
+            if (!paciente) {
+                alert('Paciente no encontrado');
+                return;
+            }
+
+            if (confirm(`¿Finalizar estudios de ${paciente.paciente_nombre} (${paciente.numero}) y enviar a Consulta Médica?`)) {
+                const btn = document.querySelector(`[onclick="finalizarEstudios(${turnoId})"]`);
+                const originalText = btn.textContent;
+                btn.disabled = true;
+                btn.textContent = '⏳ Enviando...';
+
+                // Datos mínimos para la API
+                const datos = {
+                    turno_id: turnoId,
+                    mediciones: {}, // Vacío porque no registramos mediciones
+                    observaciones: 'Estudios completados - Enviado a consulta',
+                    atendido_por: 'Toma de Cálculos'
+                };
+
+                console.log('🔬 Enviando paciente a consulta:', datos);
+
+                fetch('/api/toma-calculos/finalizar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(datos)
+                })
+                .then(response => {
+                    console.log('🔬 Respuesta status:', response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('🔬 Respuesta data:', data);
+                    if (data.success) {
+                        // Mostrar notificación de éxito
+                        mostrarNotificacion(`✅ ${paciente.paciente_nombre} enviado/a a consulta`);
+                        
+                        // Recargar la lista
+                        setTimeout(() => {
+                            cargarPacientesTomaCalculos();
+                        }, 1000);
+                        
+                    } else {
+                        alert('Error: ' + (data.error || 'Error al enviar a consulta'));
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Error:', error);
+                    alert('Error al conectar con el servidor: ' + error.message);
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                });
+            }
+        }
+
+        // Función para mostrar notificaciones
+        function mostrarNotificacion(mensaje) {
+            const notificacion = document.createElement('div');
+            notificacion.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #2ecc71;
+                color: white;
+                padding: 15px 25px;
+                border-radius: 8px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                z-index: 1000;
+                font-weight: 600;
+            `;
+            notificacion.textContent = mensaje;
+            document.body.appendChild(notificacion);
+            
+            setTimeout(() => {
+                if (notificacion.parentNode) {
+                    notificacion.parentNode.removeChild(notificacion);
+                }
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

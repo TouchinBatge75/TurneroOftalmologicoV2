@@ -1783,3 +1783,294 @@ class Operador(UserMixin, db.Model):
         return (
             f'<Operador {self.id}: {self.usuario}>'
         )
+
+    
+# =====================================================
+# CONSULTORIOS
+# =====================================================
+
+class Consultorio(db.Model):
+    __tablename__ = 'consultorios'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    codigo = db.Column(
+        db.String(30),
+        nullable=False
+    )
+
+    nombre = db.Column(
+        db.String(120),
+        nullable=False
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    sede = db.relationship('Sede')
+    area = db.relationship('Area')
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'sede_id',
+            'codigo',
+            name='uq_consultorio_sede_codigo'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sede_id': self.sede_id,
+            'area_id': self.area_id,
+            'codigo': self.codigo,
+            'nombre': self.nombre,
+            'activo': self.activo
+        }
+
+
+# =====================================================
+# ASIGNACIONES DE MÉDICOS
+# =====================================================
+
+class AsignacionDoctor(db.Model):
+    __tablename__ = 'asignaciones_doctores'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    doctor_id = db.Column(
+        db.Integer,
+        db.ForeignKey('doctores.id'),
+        nullable=False,
+        index=True
+    )
+
+    consultorio_id = db.Column(
+        db.Integer,
+        db.ForeignKey('consultorios.id'),
+        nullable=False,
+        index=True
+    )
+
+    dia_semana = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    hora_inicio = db.Column(
+        db.Time,
+        nullable=False
+    )
+
+    hora_fin = db.Column(
+        db.Time,
+        nullable=False
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    doctor = db.relationship('Doctor')
+
+    consultorio = db.relationship(
+        'Consultorio',
+        backref='asignaciones'
+    )
+
+    __table_args__ = (
+        db.CheckConstraint(
+            'dia_semana BETWEEN 0 AND 6',
+            name='ck_asignacion_dia_semana'
+        ),
+        db.CheckConstraint(
+            'hora_fin > hora_inicio',
+            name='ck_asignacion_horario'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'doctor_id': self.doctor_id,
+            'consultorio_id': self.consultorio_id,
+            'dia_semana': self.dia_semana,
+            'hora_inicio': self.hora_inicio.strftime('%H:%M'),
+            'hora_fin': self.hora_fin.strftime('%H:%M'),
+            'activo': self.activo
+        }
+
+# =====================================================
+# NOTIFICACIONES ENTRE ÁREAS
+# =====================================================
+
+class Notificacion(db.Model):
+    __tablename__ = 'notificaciones'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_destino_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_origen_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=True
+    )
+
+    operador_origen_id = db.Column(
+        db.Integer,
+        db.ForeignKey('operadores.id'),
+        nullable=True
+    )
+
+    atencion_id = db.Column(
+        db.Integer,
+        db.ForeignKey('atenciones.id'),
+        nullable=True,
+        index=True
+    )
+
+    tipo = db.Column(
+        db.String(50),
+        nullable=False
+    )
+
+    titulo = db.Column(
+        db.String(150),
+        nullable=False
+    )
+
+    mensaje = db.Column(
+        db.Text,
+        nullable=False
+    )
+
+    prioridad = db.Column(
+        db.String(20),
+        nullable=False,
+        default='NORMAL'
+    )
+
+    referencia_tipo = db.Column(
+        db.String(50),
+        nullable=True
+    )
+
+    referencia_id = db.Column(
+        db.Integer,
+        nullable=True
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    __table_args__ = (
+        db.CheckConstraint(
+            "prioridad IN ('NORMAL', 'ALTA', 'URGENTE')",
+            name='ck_notificacion_prioridad'
+        ),
+    )
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'sede_id': self.sede_id,
+            'area_destino_id': self.area_destino_id,
+            'area_origen_id': self.area_origen_id,
+            'atencion_id': self.atencion_id,
+            'tipo': self.tipo,
+            'titulo': self.titulo,
+            'mensaje': self.mensaje,
+            'prioridad': self.prioridad,
+            'referencia_tipo': self.referencia_tipo,
+            'referencia_id': self.referencia_id,
+            'fecha_creacion': (
+                self.fecha_creacion.isoformat()
+                if self.fecha_creacion else None
+            ),
+            'activo': self.activo
+        }
+
+
+# =====================================================
+# LECTURAS DE NOTIFICACIONES POR OPERADOR
+# =====================================================
+
+class NotificacionLectura(db.Model):
+    __tablename__ = 'notificaciones_lecturas'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    notificacion_id = db.Column(
+        db.Integer,
+        db.ForeignKey('notificaciones.id'),
+        nullable=False,
+        index=True
+    )
+
+    operador_id = db.Column(
+        db.Integer,
+        db.ForeignKey('operadores.id'),
+        nullable=False,
+        index=True
+    )
+
+    fecha_lectura = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'notificacion_id',
+            'operador_id',
+            name='uq_notificacion_lectura_operador'
+        ),
+    )
