@@ -1657,3 +1657,129 @@ class PagoDetalle(db.Model):
 
     def __repr__(self):
         return f'<PagoDetalle {self.concepto}>'
+
+
+    # =====================================================
+# OPERADORES DEL TURNERO
+# =====================================================
+
+from flask_login import UserMixin
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
+
+
+class Operador(UserMixin, db.Model):
+
+    __tablename__ = 'operadores'
+
+    # =============================================
+    # IDENTIFICACIÓN INTERNA
+    # =============================================
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    nombre = db.Column(
+        db.String(150),
+        nullable=False
+    )
+
+    usuario = db.Column(
+        db.String(80),
+        unique=True,
+        nullable=False,
+        index=True
+    )
+
+    # =============================================
+    # AUTENTICACIÓN LOCAL
+    # =============================================
+
+    password_hash = db.Column(
+        db.String(255),
+        nullable=True
+    )
+
+    proveedor_identidad = db.Column(
+        db.String(30),
+        nullable=False,
+        default='LOCAL',
+        server_default='LOCAL'
+    )
+
+    # Identificador del usuario en un sistema externo.
+    # No es una llave foránea a Maverick.
+    id_usuario_externo = db.Column(
+        db.String(100),
+        nullable=True
+    )
+
+    # =============================================
+    # PERMISOS Y SEDE
+    # =============================================
+
+    rol = db.Column(
+        db.String(30),
+        nullable=False,
+        default='AREA'
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True,
+        server_default='true'
+    )
+
+    sede = db.relationship('Sede')
+
+    # =============================================
+    # CONTRASEÑAS
+    # =============================================
+
+    def establecer_password(self, password):
+
+        if not password:
+            raise ValueError(
+                'La contraseña no puede estar vacía'
+            )
+
+        self.password_hash = generate_password_hash(
+            password
+        )
+
+    def verificar_password(self, password):
+
+        if self.proveedor_identidad != 'LOCAL':
+            return False
+
+        if not self.password_hash or not password:
+            return False
+
+        return check_password_hash(
+            self.password_hash,
+            password
+        )
+
+    # =============================================
+    # ESTADO PARA FLASK-LOGIN
+    # =============================================
+
+    @property
+    def is_active(self):
+        return bool(self.activo)
+
+    def __repr__(self):
+        return (
+            f'<Operador {self.id}: {self.usuario}>'
+        )

@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
 from sqlalchemy import or_, and_
+from flask_login import current_user, login_required
 
 from app import db
 from app.models import (
@@ -3387,13 +3388,37 @@ def iniciar_solicitud_area(solicitud_id):
 # No completa servicios.
 # =====================================================
 
+
 @bp.route(
     '/solicitudes-area/<int:solicitud_id>/avanzar',
     methods=['POST']
 )
+@login_required
 def avanzar_solicitud_area(solicitud_id):
     try:
-        # 1. Buscar solicitud
+        # =============================================
+        # 1. VALIDAR OPERADOR AUTENTICADO
+        # =============================================
+
+        if not current_user.is_active:
+            return jsonify({
+                'success': False,
+                'error': 'Operador inactivo'
+            }), 403
+
+        if current_user.rol not in ('ADMIN', 'CAJA'):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene permiso para '
+                    'autorizar desde Caja'
+                )
+            }), 403
+
+        # =============================================
+        # 2. BUSCAR SOLICITUD
+        # =============================================
+
         solicitud = db.session.get(
             SolicitudArea,
             solicitud_id
@@ -3405,7 +3430,10 @@ def avanzar_solicitud_area(solicitud_id):
                 'error': 'Solicitud no encontrada'
             }), 404
 
-        # 2. Validar recorrido iniciado
+        # =============================================
+        # 3. VALIDAR RECORRIDO INICIADO
+        # =============================================
+
         if (
             solicitud.estado != 'PENDIENTE'
             or solicitud.fecha_inicio is None
@@ -3418,15 +3446,34 @@ def avanzar_solicitud_area(solicitud_id):
                 )
             }), 409
 
+        # =============================================
+        # 4. VALIDAR ATENCION Y SEDE
+        # =============================================
+
         atencion = solicitud.atencion
 
-        if not atencion or atencion.estado == 'FINALIZADA':
+        if (
+            not atencion
+            or atencion.estado == 'FINALIZADA'
+        ):
             return jsonify({
                 'success': False,
                 'error': 'Atención no disponible'
             }), 409
 
-        # 3. Buscar turno activo
+        if current_user.sede_id != atencion.sede_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene autorización '
+                    'para esta sede'
+                )
+            }), 403
+
+        # =============================================
+        # 5. BUSCAR TURNO ACTIVO
+        # =============================================
+
         turno_actual = (
             TurnoArea.query
             .filter(
@@ -3438,7 +3485,9 @@ def avanzar_solicitud_area(solicitud_id):
                     'PAUSADO'
                 ])
             )
-            .order_by(TurnoArea.id.desc())
+            .order_by(
+                TurnoArea.id.desc()
+            )
             .first()
         )
 
@@ -3448,7 +3497,26 @@ def avanzar_solicitud_area(solicitud_id):
                 'error': 'No existe turno activo'
             }), 409
 
-        # El personal debe estar atendiendo al paciente.
+        # =============================================
+        # 6. VALIDAR AREA DE CAJA
+        # =============================================
+
+        if (
+            not turno_actual.area
+            or turno_actual.area.codigo != 'CAJA'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'La autorización debe realizarse '
+                    'desde el área de Caja'
+                )
+            }), 409
+
+        # =============================================
+        # 7. VALIDAR ESTADO DEL TURNO
+        # =============================================
+
         if turno_actual.estado != 'EN_ATENCION':
             return jsonify({
                 'success': False,
@@ -3458,7 +3526,10 @@ def avanzar_solicitud_area(solicitud_id):
                 )
             }), 409
 
-        # 4. Resolver recorrido
+        # =============================================
+        # 8. RESOLVER RECORRIDO
+        # =============================================
+
         resultado = resolver_recorrido_area_sede(
             atencion.sede_id,
             solicitud.area_destino_id
@@ -3474,13 +3545,12 @@ def avanzar_solicitud_area(solicitud_id):
             }), 409
 
         recorrido = resultado['recorrido']
+
         ids_areas = [
             paso['area_id']
             for paso in recorrido
         ]
 
-        # El turno debe estar en un paso previo,
-        # no en el destino final.
         if turno_actual.area_id not in ids_areas[:-1]:
             return jsonify({
                 'success': False,
@@ -3509,14 +3579,21 @@ def avanzar_solicitud_area(solicitud_id):
                 'error': 'Siguiente área no encontrada'
             }), 409
 
-        # 5. Leer usuario
+        # =============================================
+        # 9. VALIDAR DATOS DE LA PETICION
+        # =============================================
+
         data = request.get_json(silent=True) or {}
 
-        usuario = str(
-            data.get('usuario') or 'sistema'
-        ).strip() or 'sistema'
+        if not isinstance(data, dict):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'El cuerpo de la petición '
+                    'debe ser un objeto JSON'
+                )
+            }), 400
 
-        # Confirmación expresa del operador.
         if data.get('requisito_confirmado') is not True:
             return jsonify({
                 'success': False,
@@ -3526,7 +3603,14 @@ def avanzar_solicitud_area(solicitud_id):
                 )
             }), 400
 
-        # 6. Realizar movimiento
+        # Identidad real de la sesión.
+        # No confiar en data.get('usuario').
+        usuario = current_user.usuario
+
+        # =============================================
+        # 10. REALIZAR MOVIMIENTO
+        # =============================================
+
         nuevo_turno = mover_turno_a_area(
             turno_actual=turno_actual,
             area_destino=siguiente_area,
@@ -3536,7 +3620,8 @@ def avanzar_solicitud_area(solicitud_id):
                 or 'NORMAL'
             ),
             motivo_salida=(
-                f'Requisito previo confirmado '
+                f'Requisito previo autorizado '
+                f'por {usuario} '
                 f'para solicitud #{solicitud.id}'
             ),
             motivo_entrada=(
@@ -3546,12 +3631,16 @@ def avanzar_solicitud_area(solicitud_id):
             usuario=usuario
         )
 
-        # 7. Actualizar estado si llegó al destino
+        # =============================================
+        # 11. ACTUALIZAR SOLICITUD Y SERVICIOS
+        # =============================================
+
         llego_al_destino = (
             siguiente_area_id == solicitud.area_destino_id
         )
 
         if llego_al_destino:
+
             solicitud.estado = 'EN_PROCESO'
 
             actualizar_estado_servicios_solicitud(
@@ -3561,7 +3650,10 @@ def avanzar_solicitud_area(solicitud_id):
                 turno_area_id=nuevo_turno.id
             )
 
-        # 8. Registrar avance
+        # =============================================
+        # 12. REGISTRAR HISTORIAL
+        # =============================================
+
         db.session.add(
             HistorialTurno(
                 turno_area_id=nuevo_turno.id,
@@ -3572,13 +3664,22 @@ def avanzar_solicitud_area(solicitud_id):
                 motivo=(
                     f'Solicitud #{solicitud.id}: '
                     f'{turno_actual.area.nombre} '
-                    f'→ {siguiente_area.nombre}'
+                    f'→ {siguiente_area.nombre}. '
+                    f'Autorizado por {usuario}'
                 ),
                 usuario=usuario
             )
         )
 
+        # =============================================
+        # 13. GUARDAR TRANSACCION
+        # =============================================
+
         db.session.commit()
+
+        # =============================================
+        # 14. RESPUESTA
+        # =============================================
 
         return jsonify({
             'success': True,
@@ -3587,6 +3688,7 @@ def avanzar_solicitud_area(solicitud_id):
                 f'{siguiente_area.nombre}'
             ),
             'llego_al_destino': llego_al_destino,
+            'autorizado_por': usuario,
             'solicitud': serializar_solicitud_area(
                 solicitud
             ),
@@ -3596,6 +3698,7 @@ def avanzar_solicitud_area(solicitud_id):
         }), 200
 
     except Exception as e:
+
         db.session.rollback()
 
         return jsonify({

@@ -1,43 +1,93 @@
-from flask import Flask, render_template
+
+from flask import Flask, render_template, jsonify
+from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+
 from config import Config
+
+
+# =====================================================
+# EXTENSIONES
+# =====================================================
 
 db = SQLAlchemy()
 migrate = Migrate()
+login_manager = LoginManager()
 
+
+# =====================================================
+# FACTORY DE FLASK
+# =====================================================
 
 def create_app():
-    """Factory de Flask"""
 
     app = Flask(
         __name__,
         template_folder='../templates'
     )
 
-    # =========================
+    # =============================================
     # CONFIGURACIÓN
-    # =========================
+    # =============================================
+
     app.config.from_object(Config)
 
-    # =========================
+    # =============================================
     # INICIALIZAR EXTENSIONES
-    # =========================
+    # =============================================
+
     db.init_app(app)
     migrate.init_app(app, db)
+    login_manager.init_app(app)
 
-    # Importar modelos después de inicializar db
+    # =============================================
+    # IMPORTAR MODELOS
+    # =============================================
+
     from app import models
 
-    # =========================
-    # REGISTRAR API
-    # =========================
+    # =============================================
+    # CARGAR OPERADOR AUTENTICADO
+    # =============================================
+
+    @login_manager.user_loader
+    def cargar_operador(operador_id):
+
+        try:
+            return db.session.get(
+                models.Operador,
+                int(operador_id)
+            )
+
+        except (TypeError, ValueError):
+            return None
+
+    # =============================================
+    # ACCESO NO AUTORIZADO
+    # =============================================
+
+    @login_manager.unauthorized_handler
+    def acceso_no_autorizado():
+
+        return jsonify({
+            'success': False,
+            'error': 'Debe iniciar sesión'
+        }), 401
+
+    # =============================================
+    # REGISTRAR BLUEPRINTS
+    # =============================================
+
     from app import routes
     app.register_blueprint(routes.bp)
 
-    # =========================
+    from app import auth
+    app.register_blueprint(auth.bp)
+
+    # =============================================
     # RUTAS DE INTERFAZ
-    # =========================
+    # =============================================
 
     @app.route('/')
     def home():
@@ -57,10 +107,14 @@ def create_app():
 
     @app.route('/toma-calculos')
     def toma_calculos():
-        return render_template('toma_calculos_dashboard.html')
+        return render_template(
+            'toma_calculos_dashboard.html'
+        )
 
     @app.route('/trabajo-social')
     def trabajo_social():
-        return render_template('trabajo_social_dashboard.html')
+        return render_template(
+            'trabajo_social_dashboard.html'
+        )
 
     return app
