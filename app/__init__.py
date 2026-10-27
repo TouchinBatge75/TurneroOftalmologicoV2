@@ -102,6 +102,10 @@ def create_app():
         notificaciones.bp_notificaciones
     )
 
+    from app.admin_operador_areas import bp_admin_operador_areas
+
+    app.register_blueprint(bp_admin_operador_areas)
+
     # =============================================
     # RUTAS DE INTERFAZ
     # =============================================

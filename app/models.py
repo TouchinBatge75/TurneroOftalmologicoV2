@@ -2074,3 +2074,118 @@ class NotificacionLectura(db.Model):
             name='uq_notificacion_lectura_operador'
         ),
     )
+
+# =====================================================
+# ASIGNACIÓN DE OPERADORES A ÁREAS
+# TURNERO OFTALMOLÓGICO V2
+# =====================================================
+
+class OperadorArea(db.Model):
+
+    __tablename__ = 'operador_areas'
+
+    id = db.Column(
+        db.Integer,
+        primary_key=True
+    )
+
+    operador_id = db.Column(
+        db.Integer,
+        db.ForeignKey('operadores.id'),
+        nullable=False,
+        index=True
+    )
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=True
+    )
+
+    fecha_asignacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    operador = db.relationship(
+        'Operador',
+        foreign_keys=[operador_id]
+    )
+
+    sede = db.relationship(
+        'Sede',
+        foreign_keys=[sede_id]
+    )
+
+    area = db.relationship(
+        'Area',
+        foreign_keys=[area_id]
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'operador_id',
+            'sede_id',
+            'area_id',
+            name='uq_operador_sede_area'
+        ),
+    )
+
+    def to_dict(self):
+
+        return {
+            'id': self.id,
+
+            'operador_id': self.operador_id,
+
+            'operador': (
+                self.operador.nombre
+                if self.operador
+                else None
+            ),
+
+            'sede_id': self.sede_id,
+
+            'sede': (
+                self.sede.nombre
+                if self.sede
+                else None
+            ),
+
+            'area_id': self.area_id,
+
+            'area_codigo': (
+                self.area.codigo
+                if self.area
+                else None
+            ),
+
+            'area_nombre': (
+                self.area.nombre
+                if self.area
+                else None
+            ),
+
+            'activo': self.activo,
+
+            'fecha_asignacion': (
+                self.fecha_asignacion.isoformat()
+                if self.fecha_asignacion
+                else None
+            )
+        }
