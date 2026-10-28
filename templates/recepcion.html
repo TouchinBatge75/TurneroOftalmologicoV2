@@ -1,1614 +1,421 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Turnos - Recepción (v2.0)</title>
-    <style>
-        :root {
-    --primary: #1f4f8a;
-    --primary-dark: #163a66;
-    --primary-soft: #eaf2fb;
-
-    --secondary: #4f6b85;
-
-    --success: #2f855a;
-    --success-soft: #eaf7f0;
-
-    --warning: #b7791f;
-    --warning-soft: #fff7e6;
-
-    --danger: #c53030;
-    --danger-soft: #fff0f0;
-
-    --info: #3182a8;
-    --info-soft: #edf8fc;
-
-    --bg: #f4f7fa;
-    --surface: #ffffff;
-    --surface-alt: #f8fafc;
-
-    --border: #dbe3ea;
-    --border-strong: #c7d2dc;
-
-    --text: #243447;
-    --text-soft: #657487;
-    --text-light: #8b98a7;
-
-    --shadow-sm: 0 2px 8px rgba(18, 38, 63, 0.06);
-    --shadow-md: 0 8px 24px rgba(18, 38, 63, 0.08);
-
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 18px;
-}
-
-/* ======================================================
-   RESET
-====================================================== */
-
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-html {
-    scroll-behavior: smooth;
-}
-
-body {
-    font-family:
-        Inter,
-        "Segoe UI",
-        Roboto,
-        Helvetica,
-        Arial,
-        sans-serif;
-
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    line-height: 1.5;
-    padding: 24px;
-}
-
-/* ======================================================
-   CONTENEDOR GENERAL
-====================================================== */
-
-.container {
-    width: 100%;
-    max-width: 1500px;
-    margin: 0 auto;
-}
-
-/* ======================================================
-   ENCABEZADO
-====================================================== */
-
-.container > div:first-child {
-    background: linear-gradient(
-        135deg,
-        var(--primary-dark),
-        var(--primary)
-    );
-
-    padding: 24px 28px;
-    border-radius: var(--radius-lg);
-    color: white;
-    box-shadow: var(--shadow-md);
-    margin-bottom: 24px !important;
-}
-
-.container > div:first-child h1 {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-}
-
-.container > div:first-child small {
-    display: inline-block;
-    margin-top: 5px;
-    color: #cfe3f8 !important;
-    font-size: 13px;
-}
-
-/* ======================================================
-   TARJETAS / SECCIONES
-====================================================== */
-
-.form-section,
-.busqueda-section,
-.turnos-section,
-.card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 22px;
-    margin-bottom: 20px;
-    box-shadow: var(--shadow-sm);
-}
-
-.section-title,
-.form-section h2,
-.form-section h3,
-.busqueda-section h3,
-.card h3 {
-    color: var(--primary-dark);
-    font-weight: 650;
-    font-size: 18px;
-    margin-bottom: 18px;
-}
-
-.section-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.section-title::before {
-    content: "";
-    width: 4px;
-    height: 22px;
-    background: var(--primary);
-    border-radius: 20px;
-}
-
-/* ======================================================
-   FORMULARIOS
-====================================================== */
-
-form {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-}
-
-.form-group label {
-    font-size: 13px;
-    color: var(--text-soft);
-    font-weight: 600;
-}
-
-input,
-select,
-textarea {
-    width: 100%;
-    min-height: 42px;
-
-    padding: 10px 12px;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-
-    background: white;
-    color: var(--text);
-
-    font-size: 14px;
-    outline: none;
-
-    transition:
-        border-color 0.2s ease,
-        box-shadow 0.2s ease,
-        background 0.2s ease;
-}
-
-input:focus,
-select:focus,
-textarea:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(31, 79, 138, 0.12);
-}
-
-input:disabled {
-    background: #f0f3f6 !important;
-    color: var(--text-soft);
-}
-
-small {
-    font-size: 12px;
-    color: var(--text-light);
-}
-
-.hidden {
-    display: none !important;
-}
-
-/* ======================================================
-   BOTONES
-====================================================== */
-
-button {
-    appearance: none;
-    border: 0;
-    border-radius: var(--radius-sm);
-
-    background: var(--primary);
-    color: white;
-
-    padding: 10px 16px;
-    font-size: 13px;
-    font-weight: 600;
-
-    cursor: pointer;
-
-    transition:
-        background 0.2s ease,
-        transform 0.15s ease,
-        box-shadow 0.2s ease;
-}
-
-button:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-    box-shadow: var(--shadow-sm);
-}
-
-button:active {
-    transform: translateY(0);
-}
-
-button:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-    transform: none;
-}
-
-/* botón principal del form */
-
-form button[type="submit"] {
-    grid-column: 1 / -1;
-    justify-self: start;
-    padding-left: 22px;
-    padding-right: 22px;
-}
-
-/* ======================================================
-   ACCIONES RÁPIDAS
-====================================================== */
-
-.botones-rapidos {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.boton-rapido {
-    background: var(--primary);
-}
-
-.boton-rapido.secundario {
-    background: var(--secondary);
-}
-
-.boton-rapido.terciario {
-    background: var(--success);
-}
-
-.boton-rapido.cuaternario {
-    background: var(--info);
-}
-
-/* ======================================================
-   FLUJO DEL HOSPITAL
-====================================================== */
-
-.flujo-info {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    padding: 16px;
-    margin-bottom: 20px;
-}
-
-.flujo-info > strong {
-    color: var(--primary-dark);
-    display: block;
-    margin-bottom: 12px;
-}
-
-.flujo-step {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-
-    padding: 8px 0;
-    border-bottom: 1px solid #edf1f5;
-}
-
-.flujo-step:last-child {
-    border-bottom: none;
-}
-
-.step-number {
-    width: 28px !important;
-    height: 28px !important;
-
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-
-    background: var(--primary) !important;
-    color: white;
-
-    border-radius: 50%;
-    font-size: 12px !important;
-    font-weight: 700;
-
-    line-height: normal !important;
-    margin-right: 0 !important;
-    flex-shrink: 0;
-}
-
-.step-text {
-    color: var(--text-soft);
-    font-size: 13px;
-}
-
-/* ======================================================
-   ADVERTENCIA GABINETE
-====================================================== */
-
-.gabinete-warning {
-    background: var(--info-soft);
-    border: 1px solid #c6e8f3;
-    border-left: 5px solid var(--info);
-
-    color: #315569;
-
-    padding: 16px 18px;
-    border-radius: var(--radius-md);
-
-    margin-bottom: 20px;
-    font-size: 13px;
-}
-
-.gabinete-warning strong {
-    color: #22516b;
-}
-
-/* ======================================================
-   BUSCADOR
-====================================================== */
-
-.busqueda-section {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 12px;
-    align-items: end;
-}
-
-.busqueda-section h3 {
-    grid-column: 1 / -1;
-    margin-bottom: 0;
-}
-
-.busqueda-section button {
-    min-height: 42px;
-}
-
-/* ======================================================
-   TURNOS
-====================================================== */
-
-#listaTurnos {
-    display: grid;
-    grid-template-columns:
-        repeat(auto-fill, minmax(260px, 1fr));
-
-    gap: 14px;
-}
-
-.turno-card {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-
-    padding: 16px;
-
-    transition:
-        transform 0.2s ease,
-        box-shadow 0.2s ease,
-        border-color 0.2s ease;
-}
-
-.turno-card:hover {
-    transform: translateY(-2px);
-    border-color: #b8c9d8;
-    box-shadow: var(--shadow-md);
-}
-
-.turno-header {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--primary-dark);
-    margin-bottom: 10px;
-}
-
-.turno-info {
-    font-size: 13px;
-    color: var(--text-soft);
-    margin: 5px 0;
-}
-
-.turno-acciones {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-}
-
-.turno-acciones button {
-    flex: 1;
-    min-width: 75px;
-    padding: 8px 10px;
-    font-size: 12px;
-}
-
-/* ======================================================
-   VISOR DOCTORES / ENFERMEROS
-====================================================== */
-
-.visor-doctores {
-    display: grid;
-    grid-template-columns:
-        repeat(auto-fill, minmax(220px, 1fr));
-
-    gap: 12px;
-    margin-top: 15px;
-}
-
-.doctor-status-card {
-    background: var(--surface-alt);
-
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--text-light);
-
-    border-radius: var(--radius-md);
-    padding: 14px;
-
-    transition:
-        box-shadow 0.2s ease,
-        transform 0.2s ease;
-}
-
-.doctor-status-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-sm);
-}
-
-.doctor-status-card.activo {
-    border-left-color: var(--success);
-}
-
-.doctor-status-card.ocupado {
-    border-left-color: var(--warning);
-}
-
-.doctor-status-card.inactivo {
-    border-left-color: var(--danger);
-}
-
-.doctor-status-nombre {
-    color: var(--text);
-    font-weight: 700;
-    font-size: 14px;
-}
-
-.doctor-status-especialidad {
-    color: var(--text-soft);
-    font-size: 12px;
-    margin-top: 4px;
-}
-
-.doctor-status-estado {
-    margin-top: 10px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    color: var(--text-soft);
-}
-
-.doctor-status-card .doctor-consultorio {
-    display: inline-block;
-
-    margin-top: 8px;
-    padding: 3px 8px;
-
-    background: var(--primary-soft);
-    color: var(--primary);
-
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.doctor-status-card .doctor-enfermero {
-    display: inline-block;
-
-    margin-top: 6px;
-    padding: 3px 8px;
-
-    background: var(--success-soft);
-    color: var(--success);
-
-    border-radius: 20px;
-    font-size: 11px;
-    font-weight: 600;
-}
-
-.status-flag {
-    display: inline-block;
-
-    width: 8px;
-    height: 8px;
-
-    border-radius: 50%;
-    margin-right: 6px;
-}
-
-.status-activo {
-    background: var(--success);
-}
-
-.status-inactivo {
-    background: var(--danger);
-}
-
-.status-descanso {
-    background: var(--warning);
-}
-
-.status-emergencia {
-    background: var(--danger);
-    animation: pulse 1.5s infinite;
-}
-
-@keyframes pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.35;
-    }
-}
-
-.ultima-actualizacion {
-    color: var(--text-light);
-    font-size: 11px;
-    margin-top: 12px;
-}
-
-/* ======================================================
-   TURNOS EN TRÁNSITO
-====================================================== */
-
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 15px;
-}
-
-.transito-container {
-    display: grid;
-    grid-template-columns:
-        repeat(auto-fill, minmax(230px, 1fr));
-
-    gap: 12px;
-}
-
-.turno-transito {
-    background: var(--surface-alt);
-
-    border: 1px solid var(--border);
-    border-left: 4px solid var(--primary);
-
-    border-radius: var(--radius-md);
-    padding: 14px;
-}
-
-.turno-transito.alerta {
-    background: var(--danger-soft);
-    border-left-color: var(--danger);
-}
-
-.transito-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.transito-numero {
-    font-weight: 700;
-    color: var(--primary-dark);
-}
-
-.transito-tiempo {
-    font-size: 11px;
-    font-weight: 700;
-
-    background: var(--danger-soft);
-    color: var(--danger);
-
-    padding: 3px 7px;
-    border-radius: 20px;
-}
-
-.transito-tiempo.normal {
-    background: var(--success-soft);
-    color: var(--success);
-}
-
-.transito-paciente {
-    margin-top: 8px;
-    color: var(--text);
-    font-size: 13px;
-}
-
-.transito-detalles {
-    margin-top: 8px;
-}
-
-.transito-estacion {
-    display: inline-block;
-
-    background: var(--primary-soft);
-    color: var(--primary);
-
-    padding: 3px 8px;
-    border-radius: 20px;
-
-    font-size: 11px;
-}
-
-.transito-alerta {
-    margin-top: 8px;
-
-    color: var(--danger);
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.sin-transito,
-.loading {
-    padding: 20px;
-    text-align: center;
-    color: var(--text-light);
-    font-size: 13px;
-}
-
-/* ======================================================
-   NOTIFICACIONES
-====================================================== */
-
-#notificacionesRecepcion {
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-alt);
-    padding: 10px;
-}
-
-/* ======================================================
-   BADGES
-====================================================== */
-
-.badge {
-    font-size: 10px;
-    font-weight: 700;
-}
-
-/* ======================================================
-   BOTONES AUXILIARES
-====================================================== */
-
-.btn-refresh {
-    background: var(--secondary);
-    font-size: 12px;
-    padding: 8px 12px;
-}
-
-.btn-refresh:hover {
-    background: #3d566e;
-}
-
-/* ======================================================
-   RESPONSIVE TABLET
-====================================================== */
-
-@media (max-width: 900px) {
-
-    body {
-        padding: 14px;
-    }
-
-    form {
-        grid-template-columns: 1fr;
-    }
-
-    form button[type="submit"] {
-        grid-column: auto;
-        width: 100%;
-    }
-
-    .container > div:first-child {
-        padding: 20px;
-    }
-
-    .container > div:first-child h1 {
-        font-size: 23px;
-    }
-
-    .botones-rapidos {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .busqueda-section {
-        grid-template-columns: 1fr;
-    }
-
-    .busqueda-section h3 {
-        grid-column: auto;
-    }
-
-    .busqueda-section button {
-        width: 100%;
-    }
-}
-
-/* ======================================================
-   RESPONSIVE MÓVIL
-====================================================== */
-
-@media (max-width: 600px) {
-
-    body {
-        padding: 8px;
-    }
-
-    .container > div:first-child {
-        flex-direction: column;
-        align-items: flex-start !important;
-        gap: 14px;
-
-        padding: 18px;
-        border-radius: var(--radius-md);
-    }
-
-    .container > div:first-child button {
-        width: 100%;
-    }
-
-    .form-section,
-    .busqueda-section,
-    .turnos-section,
-    .card {
-        padding: 16px;
-    }
-
-    .botones-rapidos {
-        grid-template-columns: 1fr;
-    }
-
-    .botones-rapidos button {
-        width: 100%;
-    }
-
-    #listaTurnos,
-    .visor-doctores,
-    .transito-container {
-        grid-template-columns: 1fr;
-    }
-
-    .card-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .card-header button {
-        width: 100%;
-    }
-
-    .turno-acciones {
-        flex-direction: column;
-    }
-
-    .turno-acciones button {
-        width: 100%;
-    }
-}
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Turnero | Recepción</title>
+<style>
+/* ================================================================
+   TURNERO · MÓDULO DE RECEPCIÓN
+   Interfaz interna V4 · Sin recursos de red ni bibliotecas externas
+   ================================================================ */
+:root{
+  color-scheme:light;
+  --base:#f4f5f4;--paper:#ffffff;--paper2:#f0f2f1;
+  --ink:#1e2c34;--ink2:#66747b;--ink3:#89949a;--line:#e2e6e5;
+  --nav:#142b38;--navink:#f8faf9;--navmuted:#b3c0c4;
+  --accent:#c6a773;--accentdark:#a58859;--accentlight:#f4eee4;
+  --violet:#647f90;--blue:#4d7891;--orange:#b58c67;
+  --success:#387766;--successbg:#e7f2ee;
+  --warn:#956c36;--warnbg:#f7f0e2;
+  --danger:#a55351;--dangerbg:#faebea;
+  --shadow:0 10px 30px rgba(13,30,40,.035);
+  --radius:8px;
+  font-family:'Aptos','Segoe UI',-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+}
+html[data-theme="dark"]{
+  color-scheme:dark;
+  --base:#101e28;--paper:#182b37;--paper2:#223541;
+  --ink:#e9efef;--ink2:#a5b5bd;--ink3:#859aa4;--line:#304551;
+  --nav:#0d1b25;--navink:#f3f6f5;--navmuted:#9cadb4;
+  --accent:#d4b887;--accentdark:#caa973;--accentlight:#3b3940;
+  --violet:#9ab8c4;--blue:#9fbfcc;--orange:#d2ae84;
+  --success:#89c7b4;--successbg:#213f39;
+  --warn:#e4c48e;--warnbg:#473e31;
+  --danger:#eeb0ab;--dangerbg:#452d30;
+  --shadow:0 12px 36px rgba(0,0,0,.1);
+}
+*{box-sizing:border-box}
+body{margin:0;color:var(--ink);background:var(--base);font-size:13px;line-height:1.55;font-feature-settings:'tnum' 1}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}button:disabled{opacity:.48;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+svg{display:block;flex-shrink:0}.hidden{display:none!important}.shell{min-height:100vh}
+.topbar{min-height:91px;background:var(--nav);color:var(--navink);padding:0 max(26px,calc((100vw - 1520px)/2));display:flex;align-items:center;gap:28px;position:relative;z-index:5;border-bottom:1px solid #ffffff12}
+.topbar:before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#a98756,#d9c397 40%,#ab8b59)}
+.brand{display:flex;align-items:center;gap:12px;min-width:315px}
+.brandmark{border:1px solid rgba(221,194,148,.75);background:#ffffff08;width:42px;height:42px;border-radius:3px;color:#dcc297;display:grid;place-items:center;font-family:Georgia,'Times New Roman',serif;font-weight:normal;font-size:22px;letter-spacing:-2px;padding-right:2px;position:relative}
+.brandmark:after{content:"";position:absolute;inset:4px;border:1px solid rgba(221,194,148,.18);pointer-events:none}
+.brand-name{display:block;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.25;font-weight:normal;letter-spacing:.05px;color:#fff}
+.brand-mini{display:block;font-size:9px;text-transform:uppercase;letter-spacing:2px;color:#c8c2b7;margin-top:5px;font-weight:600}
+.nav{display:flex;align-items:stretch;align-self:stretch;gap:2px;border-left:1px solid #ffffff1c;padding-left:20px}
+.nav button{position:relative;border:0;background:transparent;color:var(--navmuted);font-size:12px;font-weight:600;padding:0 14px;white-space:nowrap;letter-spacing:.08px;transition:color .15s}
+.nav button:hover,.nav button.active{color:#fff}
+.nav button.active:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:2px;background:var(--accent)}
+.nav .counter{border:1px solid #ffffff28;background:#ffffff13;color:#eee7d7;border-radius:4px;font-size:10px;padding:2px 6px;margin-left:4px;font-weight:700}
+.top-actions{margin-left:auto;display:flex;align-items:center;gap:12px;min-width:0}
+.connection{display:flex;align-items:center;gap:8px;padding:7px 11px;border:1px solid #ffffff2d;border-radius:5px;color:#d0dadd;font-size:10px;white-space:nowrap}
+.dot{display:inline-block;height:7px;width:7px;flex-shrink:0;border-radius:50%;background:#7db7a1;box-shadow:0 0 0 3px #7db7a125}
+.dot.off{background:#cf997f;box-shadow:none}
+.iconbtn{width:35px;height:35px;display:grid;place-items:center;border:1px solid #ffffff27;border-radius:5px;background:#ffffff06;color:#edf1ef;transition:background .15s}
+.iconbtn:hover{background:#ffffff18}
+.avatar{height:34px;width:34px;flex-shrink:0;border-radius:4px;background:#d8c5a7;color:#26343b;font-family:Georgia,serif;display:grid;place-items:center;font-weight:700;font-size:12px}
+.topname{font-size:11px;font-weight:700;white-space:nowrap}.toprole{font-size:10px;color:var(--navmuted)}
+.container{width:min(1520px,calc(100% - 70px));margin-inline:auto}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;padding:40px 0 27px;border-bottom:1px solid var(--line)}
+.eyebrow{display:flex;align-items:center;gap:10px;margin-bottom:12px;font-size:10px;letter-spacing:2.35px;font-weight:750;text-transform:uppercase;color:var(--accentdark)}
+.eyebrow:before{content:"";height:1px;width:32px;background:var(--accent)}
+.hero h1{font-family:Georgia,'Times New Roman',serif;font-size:clamp(29px,3vw,45px);line-height:1.15;letter-spacing:-1.15px;font-weight:normal;margin:0 0 10px;color:var(--ink)}
+.hero h1 em{font-style:italic;color:var(--accentdark);font-weight:normal}
+.sub{color:var(--ink2);font-size:12px}.hero .sub{font-size:12px;letter-spacing:.05px}
+.hero-controls{display:flex;align-items:center;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+.btn{min-height:39px;padding:10px 15px;display:inline-flex;align-items:center;justify-content:center;gap:8px;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:5px;font-size:11px;font-weight:650;transition:border-color .15s,background .15s}
+.btn:hover{background:var(--paper2);border-color:var(--accent)}
+.btn.primary{background:var(--nav);color:#f9faf9;border:1px solid var(--nav)}
+.btn.primary:hover{background:#2c4755;border-color:#2c4755}
+.btn.dark{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.btn.ghost{background:transparent}.btn.small{min-height:32px;padding:7px 11px;font-size:11px}
+.btn.danger{color:var(--danger);border-color:var(--danger)}
+.stamp{display:flex;align-items:center;gap:8px;padding:10px 11px;border:1px solid var(--line);border-radius:5px;background:var(--paper);color:var(--ink2);font-size:10px;white-space:nowrap}
+.stamp b{color:var(--ink);font-weight:700}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 319px;align-items:start;gap:23px;padding:25px 0 45px}
+.workmain,.workaside{min-width:0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin-bottom:20px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper);overflow:hidden;box-shadow:var(--shadow)}
+.stat{position:relative;padding:18px 19px 17px;min-width:0;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat:before{content:"";width:23px;height:2px;position:absolute;top:0;left:19px;background:var(--accent)}
+.stat:nth-child(n):before{background:var(--accent)}
+.stat .value{font-family:Georgia,'Times New Roman',serif;font-size:clamp(27px,2.45vw,36px);font-weight:normal;letter-spacing:-.3px;line-height:1.1;margin:12px 0 8px;font-variant-numeric:tabular-nums}
+.stat .label{font-size:10px;color:var(--ink2);font-weight:700;text-transform:uppercase;letter-spacing:.8px}
+.stat .foot{font-size:10px;color:var(--ink3);margin-top:6px}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.panel-header{padding:25px 25px 18px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.panel-title{font-family:Georgia,'Times New Roman',serif;font-size:21px;font-weight:normal;letter-spacing:-.3px;margin:0}
+.panel-kicker{font-size:11px;color:var(--ink3);margin-top:4px}
+.panel-tools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.kicker{color:var(--ink3);font-size:9px;letter-spacing:1.55px;font-weight:800;text-transform:uppercase}
+.queue-tools{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 25px 20px;flex-wrap:wrap}
+.search{background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:0 12px;display:flex;align-items:center;gap:9px;min-height:40px;flex:1;min-width:170px;color:var(--ink3)}
+.search input{background:transparent;border:0;outline:0;min-width:0;width:100%;font-size:12px;color:var(--ink)}
+.search input:focus{outline:0}.search:focus-within{border-color:var(--accent)}
+.seg{display:flex;gap:2px;padding:3px;border:1px solid var(--line);border-radius:5px;background:var(--paper2)}
+.seg button{border:0;background:transparent;color:var(--ink2);padding:7px 12px;border-radius:3px;font-size:11px;font-weight:700}
+.seg button.active{background:var(--paper);color:var(--ink);box-shadow:0 1px 3px #0000000d}
+select.field{min-height:40px;background:var(--paper);border:1px solid var(--line);border-radius:5px;padding:9px 11px;font-size:11px}
+.tablewrap{overflow-x:auto;min-height:140px}
+table{width:100%;border-collapse:collapse;text-align:left;font-size:12px}
+th{background:var(--paper2);color:var(--ink2);font-size:9px;text-transform:uppercase;letter-spacing:1.05px;font-weight:800;white-space:nowrap;padding:13px 18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+td{padding:15px 18px;vertical-align:middle;border-bottom:1px solid var(--line)}
+tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
+.ticket{font-weight:800;font-size:12px;white-space:nowrap;letter-spacing:.1px;color:var(--ink)}
+.person{font-size:12px;font-weight:700;min-width:130px}.person-sub{font-size:10px;color:var(--ink3);margin-top:3px}
+.status{display:inline-flex;border-radius:3px;padding:5px 8px;font-weight:700;font-size:10px;white-space:nowrap;background:var(--paper2);color:var(--ink2);border:1px solid transparent}
+.status.wait{background:var(--warnbg);color:var(--warn)}.status.progress{background:var(--successbg);color:var(--success)}
+.status.called{background:var(--accentlight);color:var(--accentdark)}.status.ended{color:var(--ink3)}
+.service-chip{font-size:11px;color:var(--ink2);display:block;max-width:240px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tiny-action{background:transparent;border:1px solid var(--line);color:var(--ink);border-radius:4px;padding:7px 11px;font-size:11px;font-weight:700;white-space:nowrap}
+.tiny-action:hover{border-color:var(--accent);background:var(--paper2)}
+.panel-foot{padding:12px 25px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--line);background:var(--paper);color:var(--ink3);font-size:10px}
+.side-card{margin-bottom:16px;background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:21px;box-shadow:var(--shadow)}
+.sidehead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px}
+.sidehead h3{margin:0;font-size:10px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;color:var(--ink)}
+.ondeck{background:var(--nav);color:var(--navink);border-radius:var(--radius);padding:25px 22px;margin-bottom:16px;min-height:183px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+.ondeck:after{content:"";position:absolute;right:-37px;top:-55px;width:170px;height:170px;border:1px solid rgba(212,184,135,.19);border-radius:50%;box-shadow:0 0 0 20px #ffffff04,0 0 0 40px #ffffff03;pointer-events:none}
+.ondeck:before{content:"";height:2px;position:absolute;left:22px;top:0;width:49px;background:var(--accent)}
+.ondeck .kicker{color:#d9c3a2}.on-num{font-family:Georgia,'Times New Roman',serif;font-size:42px;font-weight:normal;letter-spacing:.2px;line-height:1.05;margin:20px 0 9px;font-variant-numeric:tabular-nums}
+.on-name{font-size:13px;font-weight:700}.on-desc{color:#b7c5c7;font-size:11px;margin-top:7px}
+.small-label{font-size:9px;color:var(--ink3);margin-bottom:7px;text-transform:uppercase;letter-spacing:1.1px;font-weight:750}
+.notice{border-bottom:1px solid var(--line);padding:13px 0;display:grid;grid-template-columns:7px 1fr;gap:10px}
+.notice:last-of-type{border:0}.notice-ind{height:6px;width:6px;border-radius:1px;background:var(--accentdark);margin-top:7px}.notice-ind.read{background:var(--line)}
+.notice-title{font-size:11px;font-weight:800;margin-bottom:5px}.notice-copy{font-size:11px;color:var(--ink2);line-height:1.6}.notice-date{font-size:10px;color:var(--ink3);margin-top:6px}
+.notice-link{border:0;background:transparent;color:var(--accentdark);font-size:11px;font-weight:750;padding:0;margin-top:8px}.notice-foot{display:block;margin-top:12px;color:var(--ink2);font-size:10px}
+.shift{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:13px;border-bottom:1px solid var(--line);padding-bottom:12px}
+.shift:last-child{border:0;padding-bottom:0}.shift strong{font-size:11px}.shift span{color:var(--ink2);font-size:11px}
+.footer{border-top:1px solid var(--line);padding:23px 0 30px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:var(--ink3);font-size:10px}
+.view{display:none}.view.active{display:block}
+.form-panel{padding:25px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.form-field{display:flex;flex-direction:column;gap:7px;min-width:0}.form-field.span2{grid-column:span 2}
+.form-field label{font-size:11px;font-weight:700}.input{border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:11px 12px;min-height:43px;outline:0;width:100%;font-size:12px}
+.input:focus{border-color:var(--accent)}textarea.input{resize:vertical;min-height:96px}
+.form-actions{border-top:1px solid var(--line);margin-top:22px;padding-top:22px;display:flex;justify-content:flex-end;gap:10px;align-items:center;flex-wrap:wrap}
+.callout{background:var(--accentlight);border-left:2px solid var(--accent);padding:15px 18px;color:var(--ink2);font-size:11px;line-height:1.7;margin-bottom:18px}
+.empty{padding:42px 15px;text-align:center;color:var(--ink3);font-size:12px}.empty b{display:block;color:var(--ink);font-size:13px;margin-bottom:7px}
+.toolbar-slim{padding:18px 25px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.notification-list{padding:7px 25px 18px}.notification-row{padding:19px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.notification-row:last-child{border:0}
+.notification-row h3{margin:0 0 5px;font-size:12px}.notification-row p{margin:0;font-size:11px;color:var(--ink2)}.notification-row small{font-size:10px;color:var(--ink3)}
+.detail-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:14px}.detail-grid div{background:var(--paper2);padding:14px;border-radius:4px;min-width:0}.detail-grid small{display:block;color:var(--ink3);font-size:10px;margin-bottom:5px}.detail-grid strong{font-size:12px;word-break:break-word}
+.modal-backdrop{position:fixed;inset:0;background:rgba(9,20,27,.75);display:grid;place-items:center;padding:20px;z-index:30}.modal{width:min(540px,100%);max-height:90vh;overflow:auto;background:var(--paper);color:var(--ink);border-radius:8px;padding:27px;border:1px solid var(--line);box-shadow:0 25px 80px #0004}.modal-header{display:flex;align-items:start;justify-content:space-between;gap:10px;margin-bottom:17px}.modal-header h2{font-family:Georgia,serif;font-weight:normal;font-size:23px;margin:0}.close{border:1px solid var(--line);background:var(--paper2);border-radius:4px;padding:7px 11px}
+.login-layout{min-height:100vh;display:grid;grid-template-columns:minmax(0,1fr) 430px;background:var(--nav);color:var(--navink)}
+.login-visual{padding:60px clamp(35px,6vw,110px);display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;position:relative;background:linear-gradient(145deg,#172e3c,#0b202c)}
+.login-visual:before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,#ffffff05 0,#ffffff05 1px,transparent 1px,transparent 90px);pointer-events:none}
+.login-visual:after{content:"";position:absolute;width:65vmin;height:65vmin;border:1px solid #d0ad7040;border-radius:50%;right:-15%;top:13%;box-shadow:0 0 0 55px #ffffff04,0 0 0 110px #ffffff03;pointer-events:none}
+.login-visual h1{font-family:Georgia,'Times New Roman',serif;font-size:clamp(43px,5.5vw,74px);max-width:800px;font-weight:normal;letter-spacing:-2.1px;line-height:1.12;margin:78px 0 20px;position:relative;z-index:1}
+.login-visual em{color:#d6bd91;font-style:italic;font-weight:normal}.login-visual p{color:#b8c5cc;font-size:13px;position:relative;z-index:1}
+.login-form{background:var(--base);color:var(--ink);padding:60px 47px;display:flex;flex-direction:column;justify-content:center}
+.login-form h2{font-family:Georgia,'Times New Roman',serif;font-size:34px;font-weight:normal;line-height:1.2;letter-spacing:-1px;margin:0 0 12px}
+.login-form .sub{margin-bottom:33px}.login-form .form-field{margin-bottom:18px}
+.login-error{padding:12px 14px;border-radius:5px;background:var(--dangerbg);color:var(--danger);font-size:12px;margin-top:15px}
+.toast{position:fixed;right:22px;bottom:24px;background:var(--nav);color:#fff;padding:14px 19px;max-width:min(420px,calc(100% - 40px));border:1px solid #d4b88763;border-radius:5px;box-shadow:0 20px 55px #0003;z-index:50;font-size:12px;line-height:1.5}
+.demo-label{background:var(--accentlight);color:var(--accentdark);border-radius:3px;padding:5px 7px;font-size:9px;font-weight:750;letter-spacing:.7px;margin-left:8px}
+@media(max-width:1360px){.brand{min-width:270px}.topbar{gap:12px;padding:0 22px}.nav{padding-left:10px}.nav button{padding:0 10px}.nav button.active:after{left:10px;right:10px}.connection{display:none}}
+@media(max-width:1100px){.workspace{grid-template-columns:minmax(0,1fr) 290px}.topname,.toprole{display:none}.brand{min-width:260px}.nav button{font-size:11px;padding:0 8px}.container{width:calc(100% - 44px)}}
+@media(max-width:920px){.workspace{grid-template-columns:1fr}.workaside{display:grid;grid-template-columns:1fr 1fr;gap:14px}.workaside>*{margin:0}.stats{grid-template-columns:repeat(4,1fr)}.nav{border:0}.topbar{flex-wrap:wrap;min-height:96px;padding:12px 22px 0}.brand{flex:1}.nav{order:5;width:100%;overflow:auto;min-height:45px;justify-content:flex-start}.top-actions{margin-left:auto}}
+@media(max-width:720px){.container{width:calc(100% - 30px)}.topbar{padding-inline:15px}.brand{min-width:0}.brand-name{font-size:13px}.brand-mini{font-size:8px;letter-spacing:1.2px}.hero{grid-template-columns:1fr;padding:27px 0 20px}.hero-controls{justify-content:flex-start}.workspace{padding-top:18px}.stats{grid-template-columns:repeat(2,1fr)}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.panel-header{padding:19px 17px 15px}.queue-tools{padding:0 17px 16px}.panel-foot{padding:12px 17px}.workaside{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-field.span2{grid-column:span 1}.login-layout{grid-template-columns:1fr}.login-visual{padding:28px 25px;min-height:265px}.login-visual h1{font-size:40px;letter-spacing:-1px;margin:33px 0 5px}.login-visual p{font-size:11px}.login-form{padding:38px 25px}.stat{padding:17px 14px}.stat:before{left:14px}}
+@media(max-width:450px){.brandmark{width:35px;height:35px;font-size:18px}.avatar{display:none}.hero-controls .stamp{width:100%}.btn{padding:9px 12px}.on-num{font-size:36px}.nav button{padding-inline:11px}}
+</style>
 </head>
 <body>
-    <div class="container">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <div>
-                <h1>Sistema de Turnos - Recepción</h1>
-                <small style="color: #28a745;">v2.0 - Sistema Profesional (Gabinete Unificado)</small>
-            </div>
-            <button onclick="abrirEstadisticas()" style="background-color: #28a745;">Ver Estadísticas</button>
-        </div>
-
-        <!-- INFO NUEVO FLUJO -->
-        <div class="gabinete-warning">
-            <strong>⚠️ IMPORTANTE - FLUJO ACTUALIZADO:</strong><br>
-            <em>Estudios Especiales</em> ya NO existe como estación separada. Todo se realiza en <strong>Gabinete (Estación 3)</strong> que ahora incluye: Toma de Cálculos + Agudeza Visual + Presión Intraocular + Queratometría + Refracción.
-        </div>
-
-        <!-- Formulario de Botones Rápidos -->
-        <div class="form-section">
-            <h2 class="section-title">Acciones Rápidas</h2>
-            <div class="botones-rapidos">
-                <button class="boton-rapido" onclick="limpiarFormulario()">Limpiar Formulario</button>
-                <button class="boton-rapido secundario" onclick="exportarDatos()">Exportar Datos</button>
-                <button class="boton-rapido terciario" onclick="abrirPanelDoctores()">Administrar Doctores</button>
-                <button class="boton-rapido cuaternario" onclick="abrirPanelEnfermeros()">Gestión Enfermeros</button>
-                <button class="boton-rapido" onclick="verFlujoActual()">Ver Flujo Actual</button>
-            </div>
-        </div>
-
-        <!-- Formulario para crear turnos (ACTUALIZADO) -->
-        <div class="form-section">
-            <h2 class="section-title">Crear Nuevo Turno</h2>
-            
-            <!-- Visualización del flujo actual -->
-            <div class="flujo-info">
-                <strong>📋 FLUJO CORREGIDO DEL HOSPITAL:</strong>
-                <div class="flujo-step">
-                    <div class="step-number">1</div>
-                    <div class="step-text"><strong>Recepción</strong> (Aquí estás)</div>
-                </div>
-                <div class="flujo-step">
-                    <div class="step-number">2</div>
-                    <div class="step-text"><strong>Trabajo Social</strong> (solo NO afiliados)</div>
-                </div>
-                <div class="flujo-step">
-                    <div class="step-number">3</div>
-                    <div class="step-text"><strong>Gabinete Unificado</strong> (toma cálculos + estudios)</div>
-                </div>
-                <div class="flujo-step">
-                    <div class="step-number">4</div>
-                    <div class="step-text"><strong>Consulta Médica</strong></div>
-                </div>
-                <div class="flujo-step">
-                    <div class="step-number">5-7</div>
-                    <div class="step-text">Farmacia / Asesoría Visual / Salida</div>
-                </div>
-            </div>
-            
-            <form id="formTurno">
-                <div class="form-group">
-                    <label for="paciente_nombre">Nombre del Paciente:</label>
-                    <input type="text" id="paciente_nombre" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="paciente_edad">Edad:</label>
-                    <input type="number" id="paciente_edad" required>
-                </div>
-                
-                <div class="form-group">
-                    <label for="tipo">Tipo de Turno:</label>
-                    <select id="tipo" required onchange="mostrarOpcionesEspecificas()">
-                        <option value="">Seleccionar tipo</option>
-                        <option value="CITA">Con Cita</option>
-                        <option value="SIN_CITA">Sin Cita</option>
-                    </select>
-                </div>
-                
-                <!-- Opciones específicas para pacientes CON CITA -->
-                <div class="form-group hidden" id="opcionesCita">
-                    <label for="estacion_inicial">Destino Inicial (según cita):</label>
-                    <select id="estacion_inicial" onchange="mostrarSelectorDoctor()">
-                        <option value="">Seleccionar destino</option>
-                        <option value="3">Gabinete (estudios completos)</option>
-                        <option value="4">Consulta Médica directa</option>
-                        <option value="5">Farmacia (solo retiro)</option>
-                        <option value="6">Asesoría Visual</option>
-                    </select>
-                    <small style="color: #6c757d;">Nota: No existe "Estudios Especiales" separado</small>
-                </div>
-                
-                <!-- Selector de Doctores (solo para Consulta Médica) -->
-                <div class="form-group hidden" id="selectorDoctor">
-                    <label for="doctor_asignado">Seleccionar Doctor:</label>
-                    <select id="doctor_asignado">
-                        <option value="">Seleccionar doctor</option>
-                        <!-- Los doctores se cargarán dinámicamente -->
-                    </select>
-                    <small style="color: #6c757d;">Sistema profesional con consultorio y enfermero asignado</small>
-                </div>
-                
-                <!-- Para pacientes SIN CITA -->
-                <div class="form-group hidden" id="opcionAfiliado">
-                    <label for="estado_afiliacion">Estado de Afiliación:</label>
-                    <select id="estado_afiliacion" onchange="mostrarDestinoAfiliado()">
-                        <option value="NO_AFILIADO">No Afiliado (primera vez)</option>
-                        <option value="YA_AFILIADO">Ya está Afiliado</option>
-                    </select>
-                </div>
-
-                <div class="form-group hidden" id="destinoAfiliado">
-                    <label>Destino Automático:</label>
-                    <input type="text" id="destino_mostrar" disabled style="background-color: #e9ecef; font-weight: bold;">
-                </div>
-                
-                <button type="submit">Generar Turno</button>
-            </form>
-        </div>
-
-        <!-- Buscador de turnos -->
-        <div class="busqueda-section">
-            <h3>Buscar Turno</h3>
-            <input type="text" id="buscarTurno" placeholder="Buscar por número o nombre...">
-            <button onclick="buscarTurno()">Buscar</button>
-        </div>
-
-        <!-- Lista de turnos activos -->
-        <div class="turnos-section">
-            <h2 class="section-title">Turnos Activos</h2>
-            <div id="listaTurnos">
-                <p>Cargando turnos...</p>
-            </div>
-        </div>
-
-        <!-- Estado de Doctores PROFESIONAL (ACTUALIZADO) -->
-        <div class="form-section">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h3>👨‍⚕️ Estado de Doctores - Sistema Profesional</h3>
-                <div>
-                    <button onclick="cargarVisorDoctores()" class="btn-refresh">Actualizar</button>
-                    <button onclick="cambiarEstatusRapido()" style="background-color: #17a2b8; margin-left: 10px;">
-                        Cambiar Estatus
-                    </button>
-                </div>
-            </div>
-            <div class="visor-doctores" id="visorDoctores">
-                <p>Cargando estado de doctores...</p>
-            </div>
-            <div class="ultima-actualizacion" id="actualizacionDoctores">
-                Última actualización: --
-            </div>
-        </div>
-
-        <!-- Estado de Enfermeros -->
-        <div class="form-section">
-            <h3>👩‍⚕️ Estado de Enfermeros</h3>
-            <div class="visor-doctores" id="visorEnfermeros">
-                <p>Cargando estado de enfermeros...</p>
-            </div>
-            <button onclick="actualizarEstadoEnfermeros()" style="background-color: #17a2b8; margin-top: 10px;">
-                Actualizar Estado
-            </button>
-        </div>
-
-        <!-- Turnos en Tránsito (mantener igual) -->
-        <div class="card transito-card">
-            <div class="card-header">
-                <h3>🔄 Turnos en Tránsito</h3>
-                <button onclick="cargarTurnosEnTransito()" class="btn-refresh">Actualizar</button>
-            </div>
-            <div id="turnos-transito" class="transito-container">
-                <div class="loading">Cargando turnos en tránsito...</div>
-            </div>
-        </div>
-
-        <!-- Notificaciones (mantener igual) -->
-        <div class="form-section">
-            <h3>📢 Notificaciones de Consultorios 
-                <span id="badgeNotificaciones" class="badge" style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 10px; display: none;">0</span>
-            </h3>
-            <div id="notificacionesRecepcion" style="max-height: 300px; overflow-y: auto;">
-                <div class="loading">Cargando notificaciones...</div>
-            </div>
-            <div style="margin-top: 10px; text-align: center;">
-                <button onclick="limpiarTodasNotificaciones()" style="background-color: #dc3545;">
-                    Limpiar Todas
-                </button>
-                <button onclick="cargarNotificaciones()" style="background-color: #17a2b8;">
-                    Actualizar
-                </button>
-            </div>
-        </div>
+<!-- Iconografía SVG propia del panel. Sin fuentes o librerías remotas. -->
+<svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true">
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M20.5 15.5A8 8 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15.2 15.2 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-7-7 7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 20h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 16l4-4-4-4m4 4H9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+<div id="login" class="login-layout hidden">
+  <section class="login-visual">
+    <div class="brand"><span class="brandmark">TR</span><span><span class="brand-name">Turnero</span><span class="brand-mini">Recepción</span></span></div>
+    <div><h1>Recepción</h1></div>
+    <div style="font-size:11px;color:#9eaa9d">Turnero · Uso interno</div>
+  </section>
+  <section class="login-form">
+    <div class="eyebrow">Acceso de operador</div><h2>Iniciar sesión</h2>
+    <div class="sub">Introduce tu usuario y contraseña.</div>
+    <form id="loginForm">
+      <div class="form-field"><label for="loginUser">Usuario</label><input id="loginUser" class="input" autocomplete="username" required placeholder="Tu usuario"></div>
+      <div class="form-field"><label for="loginPass">Contraseña</label><input id="loginPass" class="input" type="password" autocomplete="current-password" required placeholder="••••••••"></div>
+      <button id="loginSubmit" type="submit" class="btn primary" style="width:100%;margin-top:10px">Iniciar sesión <svg width="16" height="16"><use href="#i-arrow"/></svg></button>
+      <div id="loginError" class="login-error hidden" role="alert"></div>
+    </form>
+  </section>
+</div>
+<div id="app" class="shell hidden">
+  <header class="topbar">
+    <div class="brand"><span class="brandmark">TR</span><span><span class="brand-name">Turnero</span><span class="brand-mini">Recepción</span></span></div>
+    <nav class="nav" aria-label="Navegación principal">
+      <button data-view="operacion" class="active">Mesa operativa</button>
+      <button data-view="registro">Registrar ingreso</button>
+      <button data-view="atenciones">Atenciones</button>
+      <button data-view="avisos">Comunicaciones <span id="navBadge" class="counter">0</span></button>
+    </nav>
+    <div class="top-actions">
+      <span class="connection"><span class="dot" id="connectionDot"></span><span id="connectionText">Conectando</span></span>
+      <button id="themeBtn" class="iconbtn" title="Cambiar tema" aria-label="Cambiar tema"><svg width="17" height="17"><use href="#i-moon"/></svg></button>
+      <span class="avatar" id="avatar">RP</span>
+      <span><span id="userName" class="topname">Recepción</span><br><span class="toprole">Operador</span></span>
+      <button id="logoutBtn" class="iconbtn" title="Cerrar sesión" aria-label="Cerrar sesión"><svg width="17" height="17"><use href="#i-logout"/></svg></button>
     </div>
-
-    <!-- MODALES (Mantener tus modales existentes) -->
-    <!-- Solo necesitamos actualizar el JS -->
-
-    <script>
-        // ========== SISTEMA DE API PROFESIONAL ==========
-        const API_BASE = '/api';
-        
-        // Diccionario de estaciones NUEVO (según tu configuración)
-        const ESTACIONES = {
-            1: 'Recepción',
-            2: 'Trabajo Social',
-            3: 'Gabinete (Unificado)',
-            4: 'Consulta Médica',
-            5: 'Farmacia',
-            6: 'Asesoría Visual',
-            7: 'Salida'
-        };
-
-        // Inicialización del sistema
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log("Sistema de turnos v2.0 inicializando...");
-            
-            // Cargar todo
-            cargarTurnos();
-            cargarDoctores();
-            mostrarOpcionesEspecificas();
-            cargarVisorDoctores();
-            cargarVisorEnfermeros();
-            cargarNotificaciones();
-            cargarTurnosEnTransito();
-            
-            // Configurar actualizaciones automáticas
-            setInterval(cargarTurnos, 5000);
-            setInterval(cargarVisorDoctores, 5000);
-            setInterval(cargarNotificaciones, 5000);
-            
-            console.log("Sistema profesional listo");
-        });
-
-        // ========== FUNCIONES ACTUALIZADAS ==========
-
-        // Función para cargar doctores con NUEVO SISTEMA
-        async function cargarDoctores() {
-            try {
-                const response = await fetch(`${API_BASE}/doctores/dashboard`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    const selector = document.getElementById('doctor_asignado');
-                    selector.innerHTML = '<option value="">Seleccionar doctor</option>';
-                    
-                    // Filtrar doctores activos
-                    const doctoresActivos = data.doctores.filter(d => 
-                        d.estatus === 'activo' || d.activo === true
-                    );
-                    
-                    if (doctoresActivos.length === 0) {
-                        selector.innerHTML += '<option value="">No hay doctores disponibles</option>';
-                        return;
-                    }
-                    
-                    doctoresActivos.forEach(doctor => {
-                        const option = document.createElement('option');
-                        option.value = doctor.id;
-                        option.textContent = `Dr. ${doctor.nombre} - ${doctor.especialidad || 'General'}`;
-                        
-                        if (doctor.consultorio_numero) {
-                            option.textContent += ` (Consultorio ${doctor.consultorio_numero})`;
-                        }
-                        
-                        selector.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Error cargando doctores:', error);
-                const selector = document.getElementById('doctor_asignado');
-                selector.innerHTML = '<option value="">Error al cargar doctores</option>';
-            }
-        }
-
-        // Mostrar opciones según tipo de turno (ACTUALIZADO)
-        function mostrarOpcionesEspecificas() {
-            const tipo = document.getElementById('tipo').value;
-            const opcionesCita = document.getElementById('opcionesCita');
-            const selectorDoctor = document.getElementById('selectorDoctor');
-            const opcionAfiliado = document.getElementById('opcionAfiliado');
-            const destinoAfiliado = document.getElementById('destinoAfiliado');
-            
-            // Ocultar todo primero
-            opcionesCita.classList.add('hidden');
-            selectorDoctor.classList.add('hidden');
-            opcionAfiliado.classList.add('hidden');
-            destinoAfiliado.classList.add('hidden');
-            
-            // Mostrar solo lo que corresponde
-            if (tipo === 'CITA') {
-                opcionesCita.classList.remove('hidden');
-                mostrarSelectorDoctor();
-            } else if (tipo === 'SIN_CITA') {
-                opcionAfiliado.classList.remove('hidden');
-                mostrarDestinoAfiliado();
-            }
-        }
-
-        // Mostrar destino para pacientes sin cita (ACTUALIZADO)
-        function mostrarDestinoAfiliado() {
-            const estado = document.getElementById('estado_afiliacion').value;
-            const destinoInput = document.getElementById('destino_mostrar');
-            const destinoDiv = document.getElementById('destinoAfiliado');
-            
-            if (estado === 'NO_AFILIADO') {
-                destinoInput.value = "→ Trabajo Social (para afiliación) → Gabinete → Consulta";
-                destinoDiv.classList.remove('hidden');
-            } else if (estado === 'YA_AFILIADO') {
-                destinoInput.value = "→ Lista de espera → Doctor disponible → Gabinete";
-                destinoDiv.classList.remove('hidden');
-            } else {
-                destinoDiv.classList.add('hidden');
-            }
-        }
-
-        // Manejar creación de turnos (NUEVO SISTEMA)
-        document.getElementById('formTurno').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            // Obtener valores
-            const pacienteNombre = document.getElementById('paciente_nombre').value;
-            const pacienteEdad = document.getElementById('paciente_edad').value;
-            const tipo = document.getElementById('tipo').value;
-            
-            // Validación
-            if (!pacienteNombre || !pacienteEdad || !tipo) {
-                alert('Por favor complete todos los campos requeridos');
-                return;
-            }
-            
-            // Preparar datos según NUEVO FLUJO
-            const datos = {
-                paciente_nombre: pacienteNombre,
-                paciente_edad: parseInt(pacienteEdad),
-                tipo: tipo,
-                estacion_actual: 1  // Siempre empieza en Recepción
-            };
-            
-            // Agregar lógica específica
-            if (tipo === 'CITA') {
-                const estacionInicial = document.getElementById('estacion_inicial').value;
-                if (!estacionInicial) {
-                    alert('Por favor seleccione un destino inicial');
-                    return;
-                }
-                
-                datos.estacion_destino = parseInt(estacionInicial);
-                
-                // Si es consulta médica, agregar doctor
-                if (estacionInicial === '4') {
-                    const doctorAsignado = document.getElementById('doctor_asignado').value;
-                    if (!doctorAsignado) {
-                        alert('Por favor seleccione un doctor');
-                        return;
-                    }
-                    datos.doctor_id = parseInt(doctorAsignado);
-                }
-            } else if (tipo === 'SIN_CITA') {
-                const estadoAfiliacion = document.getElementById('estado_afiliacion').value;
-                if (!estadoAfiliacion) {
-                    alert('Por favor seleccione estado de afiliación');
-                    return;
-                }
-                
-                datos.estado_afiliacion = estadoAfiliacion;
-                // Para sin cita, el destino se calcula en el backend
-            }
-            
-            console.log('Enviando datos al nuevo sistema:', datos);
-            
-            try {
-                // Usar la NUEVA API
-                const response = await fetch(`${API_BASE}/turnos/nuevo`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(datos)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`✅ Turno creado: ${data.turno?.numero || 'Nuevo turno'}\nPaciente: ${pacienteNombre}`);
-                    
-                    // Limpiar y recargar
-                    document.getElementById('formTurno').reset();
-                    mostrarOpcionesEspecificas();
-                    
-                    cargarTurnos();
-                    cargarTurnosEnTransito();
-                    
-                } else {
-                    alert(`❌ Error: ${data.error || 'Error desconocido'}`);
-                }
-            } catch (error) {
-                console.error('Error completo:', error);
-                alert('❌ Error de conexión con el servidor');
-            }
-        });
-
-        // Cargar turnos con NUEVO FORMATO
-        async function cargarTurnos() {
-            try {
-                const response = await fetch(`${API_BASE}/turnos`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    const lista = document.getElementById('listaTurnos');
-                    
-                    if (data.turnos.length === 0) {
-                        lista.innerHTML = '<p>No hay turnos activos</p>';
-                        return;
-                    }
-
-                    lista.innerHTML = data.turnos.map(turno => `
-                        <div class="turno-card">
-                            <div class="turno-header">${turno.numero || 'Turno ' + turno.id}</div>
-                            <div class="turno-info">Paciente: ${turno.paciente_nombre}</div>
-                            <div class="turno-info">Edad: ${turno.paciente_edad} años</div>
-                            <div class="turno-info">Tipo: ${turno.tipo === 'CITA' ? 'Con Cita' : 'Sin Cita'}</div>
-                            <div class="turno-info">Estación: ${ESTACIONES[turno.estacion_actual] || turno.estacion_actual}</div>
-                            <div class="turno-info">Estado: ${turno.estado || 'PENDIENTE'}</div>
-                            ${turno.doctor_nombre ? `<div class="turno-info">Doctor: ${turno.doctor_nombre}</div>` : ''}
-
-                            <div class="turno-acciones">
-                                <button onclick="editarTurno(${turno.id})">Editar</button>
-                                <button onclick="moverTurno(${turno.id})">Mover</button>
-                                <button onclick="cancelarTurno(${turno.id})" style="background-color: #dc3545;">Cancelar</button>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Error cargando turnos:', error);
-                document.getElementById('listaTurnos').innerHTML = '<p>Error al cargar turnos</p>';
-            }
-        }
-
-        // Cargar visor de doctores PROFESIONAL
-        async function cargarVisorDoctores() {
-            try {
-                const response = await fetch(`${API_BASE}/doctores/dashboard`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    mostrarVisorDoctoresProfesional(data.doctores, data.estadisticas);
-                    document.getElementById('actualizacionDoctores').textContent = 
-                        `Última actualización: ${new Date().toLocaleTimeString()}`;
-                }
-            } catch (error) {
-                console.error('Error cargando visor doctores:', error);
-                document.getElementById('visorDoctores').innerHTML = '<p>Error al cargar estado de doctores</p>';
-            }
-        }
-
-        // Mostrar doctores con NUEVO SISTEMA PROFESIONAL
-        function mostrarVisorDoctoresProfesional(doctores, estadisticas) {
-            const contenedor = document.getElementById('visorDoctores');
-            
-            if (!doctores || doctores.length === 0) {
-                contenedor.innerHTML = '<p>No hay doctores registrados</p>';
-                return;
-            }
-
-            // Estadísticas
-            const statsHtml = estadisticas ? `
-                <div style="background: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 15px; font-size: 14px;">
-                    <strong>📊 Estadísticas:</strong> 
-                    Activos: ${estadisticas.activos || 0} | 
-                    En consulta: ${estadisticas.en_consulta || 0} | 
-                    Disponibles: ${estadisticas.disponibles || 0}
-                </div>
-            ` : '';
-
-            // Doctores
-            const doctoresHtml = doctores.map(doctor => {
-                // Determinar clase y texto según nuevo sistema de estatus
-                let statusClass = 'inactivo';
-                let statusText = 'Inactivo';
-                let statusColor = '#dc3545';
-                
-                if (doctor.estatus === 'activo') {
-                    if (doctor.disponible) {
-                        statusClass = 'activo';
-                        statusText = 'Disponible';
-                        statusColor = '#28a745';
-                    } else {
-                        statusClass = 'ocupado';
-                        statusText = 'En consulta';
-                        statusColor = '#ffc107';
-                    }
-                } else if (doctor.estatus === 'descanso') {
-                    statusClass = 'ocupado';
-                    statusText = 'Descanso';
-                    statusColor = '#ffc107';
-                } else if (doctor.estatus === 'emergencia') {
-                    statusClass = 'ocupado';
-                    statusText = 'Emergencia';
-                    statusColor = '#dc3545';
-                }
-                
-                return `
-                    <div class="doctor-status-card ${statusClass}" 
-                         style="cursor: pointer;" 
-                         onclick="cambiarEstatusDoctor(${doctor.id})">
-                        
-                        <div class="doctor-status-nombre">
-                            <span class="status-flag" style="background-color: ${statusColor}"></span>
-                            ${doctor.nombre || 'Doctor'}
-                        </div>
-                        
-                        <div class="doctor-status-especialidad">
-                            ${doctor.especialidad || 'Oftalmología General'}
-                        </div>
-                        
-                        ${doctor.consultorio_numero ? `
-                            <div class="doctor-consultorio">
-                                🏥 Consultorio ${doctor.consultorio_numero}
-                            </div>
-                        ` : ''}
-                        
-                        ${doctor.enfermero_nombre ? `
-                            <div class="doctor-enfermero">
-                                👩‍⚕️ ${doctor.enfermero_nombre}
-                            </div>
-                        ` : ''}
-                        
-                        <div class="doctor-status-estado">
-                            ${statusText.toUpperCase()}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-            
-            contenedor.innerHTML = statsHtml + doctoresHtml;
-        }
-
-        // Función para cambiar estatus de doctor (NUEVO)
-        async function cambiarEstatusDoctor(doctorId) {
-            const opciones = [
-                {valor: 'activo', texto: '🟢 Activo (disponible)'},
-                {valor: 'descanso', texto: '🟡 En descanso'},
-                {valor: 'inactivo', texto: '🔴 Inactivo'},
-                {valor: 'emergencia', texto: '🚨 Emergencia'}
-            ];
-            
-            const opcionTexto = opciones.map(o => o.texto).join('\n');
-            const seleccion = prompt(`Cambiar estatus del doctor:\n\n${opcionTexto}\n\nIngresa el número (1-4):`);
-            
-            if (!seleccion) return;
-            
-            const opcionIndex = parseInt(seleccion) - 1;
-            if (opcionIndex < 0 || opcionIndex >= opciones.length) {
-                alert('Opción inválida');
-                return;
-            }
-            
-            const nuevoEstatus = opciones[opcionIndex].valor;
-            
-            try {
-                const response = await fetch(`${API_BASE}/doctores/${doctorId}/actualizar-estado`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ estado: nuevoEstatus })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`✅ Estatus actualizado a: ${nuevoEstatus}`);
-                    cargarVisorDoctores();
-                } else {
-                    alert(`❌ Error: ${data.error}`);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('❌ Error de conexión');
-            }
-        }
-
-        // Función para mover turno entre estaciones
-        async function moverTurno(turnoId) {
-            const opciones = Object.entries(ESTACIONES)
-                .map(([id, nombre]) => `${id}: ${nombre}`)
-                .join('\n');
-            
-            const destino = prompt(`Mover turno a estación:\n\n${opciones}\n\nIngresa el número de estación:`);
-            
-            if (!destino || !ESTACIONES[destino]) {
-                alert('Estación inválida');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE}/turnos/${turnoId}/mover`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ estacion_destino: parseInt(destino) })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert(`✅ Turno movido a: ${ESTACIONES[destino]}`);
-                    cargarTurnos();
-                    cargarTurnosEnTransito();
-                } else {
-                    alert(`❌ Error: ${data.error}`);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('❌ Error de conexión');
-            }
-        }
-
-        // Cargar turnos en tránsito (ACTUALIZADO)
-        async function cargarTurnosEnTransito() {
-            try {
-                const response = await fetch(`${API_BASE}/turnos`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    const contenedor = document.getElementById('turnos-transito');
-                    
-                    // Filtrar turnos que no están en recepción ni salida
-                    const turnosTransito = data.turnos.filter(t => 
-                        t.estacion_actual > 1 && t.estacion_actual < 7
-                    );
-                    
-                    if (turnosTransito.length === 0) {
-                        contenedor.innerHTML = '<div class="sin-transito">No hay turnos en tránsito</div>';
-                        return;
-                    }
-                    
-                    contenedor.innerHTML = turnosTransito.map(turno => {
-                        const tiempoEspera = calcularTiempoEspera(turno);
-                        const tiempoAlerta = tiempoEspera > 30;
-                        
-                        return `
-                            <div class="turno-transito ${tiempoAlerta ? 'alerta' : ''}">
-                                <div class="transito-header">
-                                    <span class="transito-numero">${turno.numero || 'T-' + turno.id}</span>
-                                    <span class="transito-tiempo ${tiempoAlerta ? '' : 'normal'}">
-                                        ${tiempoEspera} min
-                                    </span>
-                                </div>
-                                <div class="transito-paciente">${turno.paciente_nombre}</div>
-                                <div class="transito-detalles">
-                                    <span class="transito-estacion">${ESTACIONES[turno.estacion_actual] || turno.estacion_actual}</span>
-                                </div>
-                                ${tiempoAlerta ? '<div class="transito-alerta">¡Tiempo excedido!</div>' : ''}
-                            </div>
-                        `;
-                    }).join('');
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                document.getElementById('turnos-transito').innerHTML = 
-                    '<div class="sin-transito">Error cargando tránsito</div>';
-            }
-        }
-
-        // Función auxiliar para calcular tiempo de espera
-        function calcularTiempoEspera(turno) {
-            if (!turno.actualizado_en) return 0;
-            const ahora = new Date();
-            const actualizado = new Date(turno.actualizado_en);
-            const minutos = Math.floor((ahora - actualizado) / (1000 * 60));
-            return minutos;
-        }
-
-        // Función para ver flujo actual
-        function verFlujoActual() {
-            alert(`🏥 FLUJO ACTUAL DEL HOSPITAL (Gabinete Unificado):
-
-1. RECEPCIÓN
-   ├── Con Cita → Destino según cita
-   └── Sin Cita
-       ├── Ya Afiliado → Lista espera doctor
-       └── No Afiliado → Trabajo Social
-
-2. TRABAJO SOCIAL (solo no afiliados)
-
-3. GABINETE UNIFICADO (NUEVO)
-   ├── Toma de Cálculos
-   ├── Agudeza Visual  
-   ├── Presión Intraocular
-   ├── Queratometría
-   └── Refracción
-
-4. CONSULTA MÉDICA
-
-5-7. FARMACIA / ASESORÍA / SALIDA
-
-⚠️ Estudios Especiales YA NO existe como estación separada.`);
-        }
-
-        // ========== MANTENER OTRAS FUNCIONES EXISTENTES ==========
-        // (Las funciones que no he reescrito mantienen tu código original)
-        
-        // Función para cancelar turno (sin cambios)
-        async function cancelarTurno(turnoId) {
-            const razon = prompt('¿Por qué se cancela el turno?\n\n1. Paciente no se presentó\n2. Error en datos\n3. Paciente reagendó\n4. Otro', 'Paciente no se presentó');
-            
-            if (razon === null) return;
-            
-            if (razon && confirm('¿Cancelar este turno?')) {
-                try {
-                    const response = await fetch(`${API_BASE}/turnos/${turnoId}/cancelar`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ razon: razon })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        alert('✅ Turno cancelado');
-                        cargarTurnos();
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('❌ Error al cancelar');
-                }
-            }
-        }
-
-        // Función para buscar turnos (sin cambios)
-        async function buscarTurno() {
-            const termino = document.getElementById('buscarTurno').value.trim();
-            if (!termino) {
-                alert('Ingresa un número de turno o nombre');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE}/turnos`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    const resultados = data.turnos.filter(turno => 
-                        (turno.numero && turno.numero.includes(termino.toUpperCase())) || 
-                        turno.paciente_nombre.toLowerCase().includes(termino.toLowerCase())
-                    );
-                    
-                    if (resultados.length === 0) {
-                        alert('No se encontraron turnos');
-                        return;
-                    }
-                    
-                    // Mostrar resultados
-                    const lista = document.getElementById('listaTurnos');
-                    lista.innerHTML = resultados.map(turno => `
-                        <div class="turno-card">
-                            <div class="turno-header">${turno.numero || 'Turno ' + turno.id}</div>
-                            <div class="turno-info">Paciente: ${turno.paciente_nombre}</div>
-                            <div class="turno-info">Estación: ${ESTACIONES[turno.estacion_actual] || turno.estacion_actual}</div>
-                            <div class="turno-acciones">
-                                <button onclick="editarTurno(${turno.id})">Editar</button>
-                                <button onclick="moverTurno(${turno.id})">Mover</button>
-                            </div>
-                        </div>
-                    `).join('');
-                }
-            } catch (error) {
-                console.error('Error buscando:', error);
-                alert('Error al buscar');
-            }
-        }
-
-        // ========== FUNCIONES QUE NECESITAS IMPLEMENTAR EN EL BACKEND ==========
-        /*
-        Necesitas agregar estas rutas a tu API:
-
-        1. GET /api/doctores/dashboard → Devuelve doctores con consultorio y enfermero
-        2. PUT /api/doctores/:id/actualizar-estado → Actualiza estatus profesional
-        3. POST /api/turnos/:id/mover → Mueve turno entre estaciones
-        4. PUT /api/turnos/:id/cancelar → Cancela turno con razón
-
-        Mientras implementas, puedes usar las rutas existentes y yo te ayudo a adaptarlas.
-        */
-
-        console.log("Sistema Recepción v2.0 - Adaptado para nuevo flujo hospitalario");
-    </script>
+  </header>
+  <main class="container">
+    <section class="hero">
+      <div><div class="eyebrow">Recepción <span id="demoBadge" class="demo-label hidden">VISTA DEMOSTRATIVA</span></div><h1>Mesa operativa</h1><div class="sub"><span id="sedeName">Cargando sede</span> <span style="padding:0 8px;color:var(--ink3)">/</span> <span id="dateLabel">—</span></div></div>
+      <div class="hero-controls"><div class="stamp"><span class="dot" id="stampDot"></span> <b id="stampText">Sincronizando</b> <span id="updateTime"></span></div><button id="refreshBtn" class="btn"><svg width="15" height="15"><use href="#i-refresh"/></svg> Actualizar</button><button class="btn primary" data-switch="registro"><svg width="16" height="16"><use href="#i-plus"/></svg> Registrar paciente</button></div>
+    </section>
+    <div class="workspace">
+      <div class="workmain">
+        <section id="view-operacion" class="view active">
+          <div class="stats">
+            <div class="stat"><div class="label">En fila hoy</div><div class="value" id="statWait">—</div><div class="foot">Recepción / Caja</div></div>
+            <div class="stat"><div class="label">En proceso hoy</div><div class="value" id="statProcess">—</div><div class="foot">Llamados y atendidos</div></div>
+            <div class="stat"><div class="label">Pendientes de leer</div><div class="value" id="statNotis">—</div><div class="foot">Mensajes de mis áreas</div></div>
+            <div class="stat"><div class="label">Ingresos hoy</div><div class="value" id="statIngresos">—</div><div class="foot">Atenciones registradas</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div><h2 class="panel-title">Control de turnos</h2><div class="panel-kicker">Seguimiento de la fila de Caja y servicios solicitados</div></div><span class="kicker" id="queueTotal">— turnos</span></div>
+            <div class="queue-tools"><div class="seg" role="group" aria-label="Periodo de turnos"><button id="periodToday" class="active" data-period="hoy">Hoy</button><button id="periodAll" data-period="todos">Todos</button></div><div style="display:flex;gap:8px;flex:1;justify-content:flex-end;flex-wrap:wrap"><label class="search"><svg width="15" height="15"><use href="#i-search"/></svg><input id="queueSearch" placeholder="Buscar turno, paciente, folio" aria-label="Buscar en la fila"></label><select id="queueStatus" class="field" aria-label="Filtrar estado"><option value="todos">Todos los estados</option><option value="ESPERA">En espera</option><option value="LLAMADO">Llamados</option><option value="EN_ATENCION">En atención</option><option value="FINALIZADO">Finalizados</option></select></div></div>
+            <div class="tablewrap"><table><thead><tr><th>Turno</th><th>Paciente / folio</th><th>Estado</th><th>Servicio solicitado</th><th>Ingreso</th><th></th></tr></thead><tbody id="queueBody"><tr><td colspan="6" class="empty">Cargando turnos...</td></tr></tbody></table></div>
+            <div class="panel-foot"><span id="queueFoot">Mostrando turnos de la sede</span><span>Área: Recepción / Caja</span></div>
+          </div>
+        </section>
+        <section id="view-registro" class="view">
+          <div class="panel"><div class="panel-header"><div><h2 class="panel-title">Nuevo ingreso</h2><div class="panel-kicker">Registro de atención en la sede del operador</div></div><span class="kicker">Registro</span></div>
+            <div class="form-panel"><div class="callout">El motor de Turnero determina el área inicial según las reglas configuradas. Este formulario registra una atención <b>sin cita</b>; no crea citas ni registra pagos.</div>
+            <form id="registerForm"><div class="form-grid">
+              <div class="form-field"><label for="fNombre">Nombre(s) *</label><input class="input" id="fNombre" maxlength="100" required></div>
+              <div class="form-field"><label for="fPaterno">Apellido paterno *</label><input class="input" id="fPaterno" maxlength="100" required></div>
+              <div class="form-field"><label for="fMaterno">Apellido materno</label><input class="input" id="fMaterno" maxlength="100"></div>
+              <div class="form-field"><label for="fAfiliado">Afiliación</label><select class="input" id="fAfiliado"><option value="false">No afiliado</option><option value="true">Afiliado</option></select></div>
+              <div class="form-field span2"><label for="fObservaciones">Observaciones (opcional)</label><textarea class="input" id="fObservaciones" maxlength="1000" placeholder="Información operativa relevante..."></textarea></div>
+            </div><div class="form-actions"><span class="sub" style="margin-right:auto">* Campos obligatorios · Sede: <b id="formSede">—</b></span><button type="reset" class="btn">Limpiar</button><button type="submit" id="registerSubmit" class="btn primary"><svg width="16" height="16"><use href="#i-plus"/></svg> Registrar ingreso</button></div></form><div id="registerResult" class="callout hidden" role="status" style="margin-top:18px"></div>
+            </div>
+          </div>
+        </section>
+        <section id="view-atenciones" class="view"><div class="panel"><div class="panel-header"><div><h2 class="panel-title">Atenciones registradas</h2><div class="panel-kicker">Consulta de atenciones de esta sede</div></div><span class="kicker" id="attTotal">—</span></div><div class="toolbar-slim"><label class="search"><svg width="15" height="15"><use href="#i-search"/></svg><input id="attSearch" placeholder="Buscar paciente o folio" aria-label="Buscar atenciones"></label><select id="attPeriod" class="field" aria-label="Periodo de atenciones"><option value="hoy">Ingresos de hoy</option><option value="todas">Todas las fechas</option></select></div><div class="tablewrap"><table><thead><tr><th>Folio</th><th>Paciente</th><th>Llegada</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody id="attBody"></tbody></table></div><div class="panel-foot"><span id="attFoot">—</span><span>Vista de consulta</span></div></div></section>
+        <section id="view-avisos" class="view"><div class="panel"><div class="panel-header"><div><h2 class="panel-title">Centro de mensajes</h2><div class="panel-kicker">Notificaciones recibidas en las áreas autorizadas</div></div><span class="kicker" id="notisTotal">—</span></div><div class="toolbar-slim"><div class="seg" role="group"><button class="active" data-notifilter="todas">Todas</button><button data-notifilter="pendientes">Sin leer</button></div></div><div class="notification-list" id="fullNotifications"></div></div></section>
+      </div>
+      <aside class="workaside" aria-label="Seguimiento rápido">
+        <div class="ondeck"><div class="kicker">Próximo turno · Recepción / Caja</div><div id="nextTicket" class="on-num">—</div><div id="nextName" class="on-name">Esperando información</div><div id="nextDetail" class="on-desc">Turnos registrados en la jornada</div></div>
+        <div class="side-card"><div class="sidehead"><h3>Comunicaciones recientes</h3><button class="tiny-action" data-switch="avisos">Ver todos</button></div><div id="recentNotis"><div class="sub">Cargando...</div></div><span id="notisSideFoot" class="notice-foot"></span></div>
+        <div class="side-card"><div class="sidehead"><h3>Estación de trabajo</h3><span class="dot"></span></div><div class="small-label">Sesión activa</div><div id="stationUser" style="font-weight:850;font-size:16px">—</div><div id="stationRole" class="sub" style="margin-top:4px">—</div><div class="shift"><span>Sede asignada</span><strong id="stationSede">—</strong></div><div class="shift"><span>Última actualización</span><strong id="stationUpdate">—</strong></div><div class="shift"><span>Consulta automática</span><strong>Cada 30 s</strong></div></div>
+      </aside>
+    </div>
+  </main>
+  <footer class="container footer"><span>Turnero · Recepción</span><span>Uso interno <span style="padding:0 8px">·</span> <span id="footerYear"></span></span></footer>
+</div>
+<div id="detailBackdrop" class="modal-backdrop hidden" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><div class="modal-header"><div><span class="kicker">Detalle del registro</span><h2 id="detailTitle">Turno</h2></div><button class="close" id="detailClose" aria-label="Cerrar detalle">Cerrar ×</button></div><div id="detailBody"></div></section></div>
+<div id="toast" class="toast hidden" role="status"></div>
+<script>
+(() => {
+  'use strict';
+  const $ = sel => document.querySelector(sel);
+  const $$ = sel => [...document.querySelectorAll(sel)];
+  const state = { user:null,sede:null,caja:[],atenciones:[],notificaciones:[],area:null,view:'operacion',period:'hoy',notifilter:'todas',busy:false,demo:location.protocol==='file:' };
+  let toastTimer=null;
+  const timeFmt = new Intl.DateTimeFormat('es-MX',{hour:'2-digit',minute:'2-digit'});
+  const dateFmt = new Intl.DateTimeFormat('es-MX',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const smallDate = new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  const today = () => new Date().toLocaleDateString('en-CA');
+  const isoDay = raw => raw ? String(raw).slice(0,10) : '';
+  const isToday = raw => isoDay(raw)===today();
+  const clean = x => String(x??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  const formatTime = raw => { if(!raw) return '—';const d=new Date(raw);return Number.isNaN(d.getTime())?'—':smallDate.format(d);};
+  function setText(sel,val){const e=$(sel);if(e)e.textContent=String(val??'—');}
+  function showToast(msg){const node=$('#toast');node.textContent=msg;node.classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>node.classList.add('hidden'),5500);}
+  function theme(){try{return localStorage.getItem('turnero-institucional-theme')||'light';}catch{return 'light';}}
+  function setTheme(value){document.documentElement.dataset.theme=value;try{localStorage.setItem('turnero-institucional-theme',value);}catch{}}
+  setTheme(theme());
+  $('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+  $('#footerYear').textContent=new Date().getFullYear();
+  $('#dateLabel').textContent=dateFmt.format(new Date());
+  async function api(path, options={}){
+    const r=await fetch(path,{credentials:'same-origin',...options});
+    let data={};try{data=await r.json();}catch{}
+    if(!r.ok||data.success===false)throw new Error(data.error||data.message||`Error HTTP ${r.status}`);
+    return data;
+  }
+  function demoSetup(){
+    const d=today(),h=(hr,min)=>`${d}T${String(hr).padStart(2,'0')}:${String(min).padStart(2,'0')}:00`;
+    state.user={id:2,usuario:'recepcion_prueba',nombre:'Recepción Prueba',rol:'RECEPCION',sede_id:1};
+    state.sede={id:1,nombre:'Orizaba',codigo:'ORIZABA'};
+    state.area={id:3,nombre:'Recepción / Caja',codigo:'CAJA'};
+    state.caja=[
+      {id:102,numero_turno:'CAJ-0102',estado:'ESPERA',tipo_prioridad:'NORMAL',fecha_entrada_cola:h(8,10),paciente:{nombre_completo:'Andrea Gómez',afiliado:true},atencion:{folio:'TV-000102',id:202},servicios:[{nombre:'Consulta Oftalmológica'}]},
+      {id:103,numero_turno:'CAJ-0103',estado:'ESPERA',tipo_prioridad:'ALTA',fecha_entrada_cola:h(8,22),paciente:{nombre_completo:'Fernando Ruiz',afiliado:true},atencion:{folio:'TV-000103',id:203},servicios:[{nombre:'Estudio de Gabinete'}]},
+      {id:104,numero_turno:'CAJ-0104',estado:'LLAMADO',tipo_prioridad:'NORMAL',fecha_entrada_cola:h(8,35),paciente:{nombre_completo:'Lucía Torres',afiliado:false},atencion:{folio:'TV-000104',id:204},servicios:[{nombre:'Consulta Oftalmológica'}]},
+      {id:105,numero_turno:'CAJ-0105',estado:'EN_ATENCION',tipo_prioridad:'NORMAL',fecha_entrada_cola:h(8,40),paciente:{nombre_completo:'Daniel Martínez',afiliado:true},atencion:{folio:'TV-000105',id:205},servicios:[{nombre:'Entrega de Lentes'}]},
+      {id:99,numero_turno:'CAJ-0099',estado:'ESPERA',tipo_prioridad:'NORMAL',fecha_entrada_cola:'2026-09-01T09:00:00',paciente:{nombre_completo:'Registro histórico de prueba',afiliado:true},atencion:{folio:'TV-000099',id:199},servicios:[]}
+    ];
+    state.atenciones=state.caja.map(t=>({id:t.atencion.id,folio:t.atencion.folio,paciente_nombre:t.paciente.nombre_completo,estado:t.estado==='ESPERA'?'ACTIVA':'ACTIVA',tipo:'SIN_CITA',hora_llegada:t.fecha_entrada_cola,sede_id:1}));
+    state.notificaciones=[
+      {id:1,titulo:'Nueva solicitud médica',mensaje:'Consulta Médica solicitó revisión de una atención en Recepción / Caja.',prioridad:'ALTA',leida:false,fecha_creacion:h(8,48)},
+      {id:2,titulo:'Paciente autorizado para atención',mensaje:'Una solicitud fue autorizada para su destino.',prioridad:'NORMAL',leida:false,fecha_creacion:h(8,15)},
+      {id:3,titulo:'Actualización de recorrido',mensaje:'El paciente avanzó hacia Gabinete.',prioridad:'NORMAL',leida:true,fecha_creacion:h(7,55)}
+    ];
+    $('#demoBadge').classList.remove('hidden');
+    $('#logoutBtn').title='Salir de la vista demostrativa';
+  }
+  function applyUser(){
+    const u=state.user||{};
+    setText('#userName',u.nombre||u.usuario||'Operador');setText('#stationUser',u.nombre||u.usuario||'Operador');
+    setText('#stationRole',`${u.rol||'Operador'} · ${u.usuario||''}`);
+    setText('#avatar',(u.nombre||u.usuario||'OP').split(/\s+/).map(s=>s[0]||'').slice(0,2).join('').toUpperCase());
+    setText('#sedeName',`Sede ${state.sede?.nombre||('#'+u.sede_id)}`);setText('#stationSede',state.sede?.nombre||('#'+u.sede_id));setText('#formSede',state.sede?.nombre||('#'+u.sede_id));
+  }
+  function setConnection(ok,when){$('#connectionDot').classList.toggle('off',!ok);$('#stampDot').classList.toggle('off',!ok);setText('#connectionText',state.demo?'Datos de ejemplo':ok?'Servidor local':'Sin conexión');setText('#stampText',state.demo?'Modo demostración':ok?'Datos actualizados':'Actualización fallida');setText('#updateTime',when||'');setText('#stationUpdate',when||'—');}
+  function navigate(target){
+    state.view=target;$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===target));$$('.view').forEach(e=>e.classList.toggle('active',e.id==='view-'+target));
+    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+  $$('[data-view]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
+  $$('[data-switch]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.switch)));
+  function stateLabel(s){return ({ESPERA:'En espera',LLAMADO:'Llamado',EN_ATENCION:'En atención',FINALIZADO:'Finalizado',CANCELADO:'Cancelado',OMITIDO:'Omitido',ACTIVA:'Activa',FINALIZADA:'Finalizada'}[s]||s||'—');}
+  function stateClass(s){return ({ESPERA:'wait',LLAMADO:'called',EN_ATENCION:'progress',ACTIVA:'progress',FINALIZADO:'ended',FINALIZADA:'ended'}[s]||'ended');}
+  function sortedQueue(){return state.caja.filter(t=>state.period==='todos'||isToday(t.fecha_entrada_cola)).filter(t=>$('#queueStatus').value==='todos'||t.estado===$('#queueStatus').value).filter(t=>{const q=$('#queueSearch').value.trim().toLowerCase();return !q||[t.numero_turno,t.paciente?.nombre_completo,t.atencion?.folio,...(t.servicios||[]).map(s=>s.nombre)].join(' ').toLowerCase().includes(q)}).sort((a,b)=>new Date(a.fecha_entrada_cola)-new Date(b.fecha_entrada_cola));}
+  function renderQueue(){
+    const arr=sortedQueue();setText('#queueTotal',`${arr.length} turnos`);setText('#queueFoot',`Mostrando ${arr.length} de ${state.caja.length} turnos registrados en Caja`);
+    const b=$('#queueBody');
+    if(!arr.length){b.innerHTML='<tr><td colspan="6"><div class="empty"><b>Sin turnos para este filtro</b>Prueba con otra fecha o consulta el historial.</div></td></tr>';}
+    else b.innerHTML=arr.map(t=>`<tr><td><span class="ticket">${clean(t.numero_turno||t.numero)}</span><div class="person-sub">#${clean(t.id)}</div></td><td><div class="person">${clean(t.paciente?.nombre_completo||t.atencion?.nombre_paciente)}</div><div class="person-sub">${clean(t.atencion?.folio)}</div></td><td><span class="status ${stateClass(t.estado)}">${clean(stateLabel(t.estado))}</span></td><td><span class="service-chip" title="${clean((t.servicios||[]).map(s=>s.nombre).join(', '))}">${clean((t.servicios||[]).map(s=>s.nombre).join(', ')||'Sin servicios asociados')}</span></td><td style="white-space:nowrap">${clean(formatTime(t.fecha_entrada_cola))}</td><td><button class="tiny-action" data-detail-turno="${Number(t.id)}">Detalles</button></td></tr>`).join('');
+    const todayQueue=state.caja.filter(t=>isToday(t.fecha_entrada_cola));
+    setText('#statWait',todayQueue.filter(t=>t.estado==='ESPERA').length);
+    setText('#statProcess',todayQueue.filter(t=>['LLAMADO','EN_ATENCION'].includes(t.estado)).length);
+    const next=todayQueue.filter(t=>t.estado==='ESPERA').sort((a,b)=>new Date(a.fecha_entrada_cola)-new Date(b.fecha_entrada_cola))[0];
+    setText('#nextTicket',next?.numero_turno||'Sin fila');setText('#nextName',next?.paciente?.nombre_completo||'Sin pacientes en espera hoy');setText('#nextDetail',next?`Ingresó ${formatTime(next.fecha_entrada_cola)} · ${next.tipo_prioridad||'NORMAL'}`:'Consulta otros periodos en la tabla.');
+  }
+  function renderAtenciones(){
+    const q=$('#attSearch').value.trim().toLowerCase(),period=$('#attPeriod').value;
+    const rows=state.atenciones.filter(a=>Number(a.sede_id||a.sede?.id)===Number(state.user.sede_id)).filter(a=>period==='todas'||isToday(a.hora_llegada)).filter(a=>!q||[a.folio,a.paciente_nombre].join(' ').toLowerCase().includes(q)).sort((a,b)=>new Date(b.hora_llegada)-new Date(a.hora_llegada));
+    setText('#attTotal',`${rows.length} resultados`);setText('#attFoot',`Mostrando ${rows.length} atenciones de la sede`);
+    $('#attBody').innerHTML=rows.length?rows.map(a=>`<tr><td class="ticket">${clean(a.folio)}</td><td><b>${clean(a.paciente_nombre)}</b></td><td style="white-space:nowrap">${clean(formatTime(a.hora_llegada))}</td><td>${clean(a.tipo||'—')}</td><td><span class="status ${stateClass(a.estado)}">${clean(stateLabel(a.estado))}</span></td><td><button class="tiny-action" data-detail-atencion="${Number(a.id)}">Detalles</button></td></tr>`).join(''):'<tr><td colspan="6"><div class="empty"><b>No hay atenciones con este criterio</b>Prueba cambiando el periodo.</div></td></tr>';
+    setText('#statIngresos',state.atenciones.filter(a=>Number(a.sede_id||a.sede?.id)===Number(state.user.sede_id)&&isToday(a.hora_llegada)).length);
+  }
+  function renderNotifications(){
+    const pending=state.notificaciones.filter(n=>!n.leida);setText('#statNotis',pending.length);setText('#navBadge',pending.length);setText('#notisTotal',`${state.notificaciones.length} avisos`);
+    const renderMini=n=>`<div class="notice"><span class="notice-ind ${n.leida?'read':''}"></span><div><div class="notice-title">${clean(n.titulo)}</div><div class="notice-copy">${clean(n.mensaje)}</div><div class="notice-date">${clean(formatTime(n.fecha_creacion))} · ${clean(n.prioridad)}</div></div></div>`;
+    $('#recentNotis').innerHTML=state.notificaciones.length?state.notificaciones.slice(0,3).map(renderMini).join(''):'<div class="sub">No tienes notificaciones.</div>';
+    setText('#notisSideFoot',`${pending.length} sin leer en tus áreas`);
+    const rows=state.notificaciones.filter(n=>state.notifilter==='todas'||!n.leida);
+    $('#fullNotifications').innerHTML=rows.length?rows.map(n=>`<article class="notification-row"><div><h3>${n.leida?'':'● '}${clean(n.titulo)}</h3><p>${clean(n.mensaje)}</p><small>${clean(formatTime(n.fecha_creacion))} · Prioridad ${clean(n.prioridad)} · ${n.leida?'Leída':'Pendiente'}</small></div>${n.leida?'':`<button class="btn small" data-read="${Number(n.id)}">Marcar leída</button>`}</article>`).join(''):'<div class="empty"><b>Todo al día</b>No se encontraron notificaciones pendientes.</div>';
+  }
+  async function readNotification(id){
+    if(state.demo){const n=state.notificaciones.find(x=>Number(x.id)===id);if(n)n.leida=true;renderNotifications();showToast('Notificación marcada como leída (simulación).');return;}
+    try{
+      const tokenData=await api('/api/notificaciones/csrf-token');
+      const token=tokenData.csrf_token||tokenData.token;
+      if(!token)throw new Error('No fue posible obtener el token CSRF de lectura');
+      await api(`/api/notificaciones/${id}/leer`,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRFToken':token,'X-CSRF-Token':token},body:JSON.stringify({csrf_token:token})});
+      await loadNotifications();showToast('Notificación marcada como leída.');
+    }catch(err){showToast(`No se pudo marcar como leída: ${err.message}`);}
+  }
+  function detail(title,fields){setText('#detailTitle',title);$('#detailBody').innerHTML=`<div class="detail-grid">${fields.map(([k,v])=>`<div><small>${clean(k)}</small><strong>${clean(v)}</strong></div>`).join('')}</div>`;$('#detailBackdrop').classList.remove('hidden');$('#detailClose').focus();}
+  document.addEventListener('click',e=>{
+    const td=e.target.closest('[data-detail-turno]');if(td){const t=state.caja.find(x=>Number(x.id)===Number(td.dataset.detailTurno));if(t)detail(t.numero_turno,[['Paciente',t.paciente?.nombre_completo],['Folio de atención',t.atencion?.folio],['Estado',stateLabel(t.estado)],['Prioridad',t.tipo_prioridad],['Fecha de ingreso',formatTime(t.fecha_entrada_cola)],['Servicios',(t.servicios||[]).map(s=>s.nombre).join(', ')||'Sin servicios asociados'],['ID del turno',t.id],['ID de atención',t.atencion?.id]]);}
+    const ad=e.target.closest('[data-detail-atencion]');if(ad){const a=state.atenciones.find(x=>Number(x.id)===Number(ad.dataset.detailAtencion));if(a)detail(a.folio,[['Paciente',a.paciente_nombre],['Estado',stateLabel(a.estado)],['Tipo',a.tipo],['Afiliado',a.afiliado?'Sí':'No'],['Llegada',formatTime(a.hora_llegada)],['Salida',formatTime(a.hora_salida)],['ID de atención',a.id]]);}
+    const rd=e.target.closest('[data-read]');if(rd)readNotification(Number(rd.dataset.read));
+  });
+  function closeDetail(){$('#detailBackdrop').classList.add('hidden');}
+  $('#detailClose').addEventListener('click',closeDetail);$('#detailBackdrop').addEventListener('click',e=>{if(e.target.id==='detailBackdrop')closeDetail();});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDetail();});
+  $$('[data-period]').forEach(b=>b.addEventListener('click',()=>{state.period=b.dataset.period;$$('[data-period]').forEach(x=>x.classList.toggle('active',x===b));renderQueue();}));
+  $$('[data-notifilter]').forEach(b=>b.addEventListener('click',()=>{state.notifilter=b.dataset.notifilter;$$('[data-notifilter]').forEach(x=>x.classList.toggle('active',x===b));renderNotifications();}));
+  $('#queueSearch').addEventListener('input',renderQueue);$('#queueStatus').addEventListener('change',renderQueue);
+  $('#attSearch').addEventListener('input',renderAtenciones);$('#attPeriod').addEventListener('change',renderAtenciones);
+  async function loadCaja(){const data=await api(`/api/caja/turnos?sede_id=${encodeURIComponent(state.user.sede_id)}`);state.caja=Array.isArray(data.turnos)?data.turnos:[];state.area=data.area||state.area;state.sede=data.sede||state.sede;}
+  async function loadAtenciones(){const data=await api('/api/atenciones');state.atenciones=(Array.isArray(data)?data:(data.atenciones||[])).filter(a=>Number(a.sede_id||a.sede?.id)===Number(state.user.sede_id));}
+  async function loadNotifications(){const data=await api('/api/notificaciones/mis-areas');state.notificaciones=Array.isArray(data.notificaciones)?data.notificaciones:[];}
+  async function refresh(){if(!state.user||state.busy)return;state.busy=true;$('#refreshBtn').disabled=true;
+    try{
+      if(!state.demo){const results=await Promise.allSettled([loadCaja(),loadAtenciones(),loadNotifications()]);const fails=results.filter(x=>x.status==='rejected');if(fails.length){setConnection(false,'');showToast(`${fails.length} consulta(s) no disponibles: ${fails[0].reason?.message||'Error del servidor'}`);}else setConnection(true,timeFmt.format(new Date()));}
+      else setConnection(true,timeFmt.format(new Date()));
+      applyUser();renderQueue();renderAtenciones();renderNotifications();
+    }finally{state.busy=false;$('#refreshBtn').disabled=false;}
+  }
+  $('#refreshBtn').addEventListener('click',refresh);
+  function displayApp(){$('#login').classList.add('hidden');$('#app').classList.remove('hidden');applyUser();refresh();}
+  function displayLogin(){$('#app').classList.add('hidden');$('#login').classList.remove('hidden');}
+  $('#loginForm').addEventListener('submit',async e=>{
+    e.preventDefault();$('#loginSubmit').disabled=true;$('#loginError').classList.add('hidden');
+    try{const result=await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:$('#loginUser').value.trim(),password:$('#loginPass').value})});state.user=result.operador;$('#loginPass').value='';displayApp();}
+    catch(err){$('#loginError').textContent=err.message;$('#loginError').classList.remove('hidden');}
+    finally{$('#loginSubmit').disabled=false;}
+  });
+  $('#logoutBtn').addEventListener('click',async()=>{
+    if(state.demo){showToast('Esta es una vista de ejemplo. Para usar sesión real, abre el HTML desde Flask.');return;}
+    try{await api('/auth/logout',{method:'POST'});state.user=null;displayLogin();}catch(err){showToast('No se pudo cerrar la sesión: '+err.message);}
+  });
+  $('#registerForm').addEventListener('submit',async e=>{
+    e.preventDefault();const u=state.user;if(!u)return;
+    const payload={sede_id:u.sede_id,nombre:$('#fNombre').value.trim(),apellido_paterno:$('#fPaterno').value.trim(),apellido_materno:$('#fMaterno').value.trim(),tipo_llegada:'SIN_CITA',afiliado:$('#fAfiliado').value==='true',servicios_ids:[],observaciones:$('#fObservaciones').value.trim(),usuario:u.usuario};
+    if(!payload.nombre||!payload.apellido_paterno){showToast('Escribe el nombre y apellido paterno.');return;}
+    if(!state.demo&&!confirm('¿Registrar esta atención en la base de datos de Turnero?'))return;
+    const btn=$('#registerSubmit');btn.disabled=true;
+    try{
+      const data=state.demo?{success:true,atencion:{folio:'TV-DEMO-001'},destino:{nombre:'Trabajo Social'},turno_area:{numero:'TRA-DEMO-001'}}:await api('/api/control/registrar',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const txt=`${state.demo?'SIMULACIÓN — ':''}Atención creada: ${data.atencion?.folio||'Sin folio'} · Destino: ${data.destino?.nombre||'Por determinar'} · Turno: ${data.turno_area?.numero||'—'}`;
+      const box=$('#registerResult');box.textContent=txt;box.classList.remove('hidden');$('#registerForm').reset();showToast('Registro procesado correctamente.');if(!state.demo)await refresh();
+    }catch(err){showToast('No se pudo registrar: '+err.message);}finally{btn.disabled=false;}
+  });
+  async function boot(){
+    if(state.demo){demoSetup();displayApp();return;}
+    try{const d=await api('/auth/me');state.user=d.operador;displayApp();}
+    catch{displayLogin();}
+  }
+  boot();setInterval(()=>{if(state.user&&document.visibilityState==='visible')refresh();},30000);
+})();
+</script>
 </body>
 </html>

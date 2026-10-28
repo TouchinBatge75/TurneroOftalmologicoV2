@@ -25,10 +25,244 @@ from app.models import (
     ReglaDestinoInicial,
     ReglaTransicion,
     Notificacion,
+    OperadorArea,
+)
+
+from app.permisos import (
+    requiere_permiso,
+    verificar_permiso,
+    verificar_area,
+    verificar_acceso_turno
 )
 
 
 bp = Blueprint('api', __name__, url_prefix='/api')
+
+# =====================================================
+# AUTORIZACIÓN CENTRALIZADA — API TURNERO V2
+# =====================================================
+# Política cerrada: cada endpoint del Blueprint debe figurar
+# aquí; cualquier ruta futura sin regla será denegada.
+# Los permisos nuevos se encuentran en el SQL adjunto.
+
+_POLITICAS_API = {
+    'api_index': ('publico', None),
+    'test': ('publico', None),
+    'get_sedes': ('general', 'catalogos_ver'),
+    'get_areas': ('general', 'catalogos_ver'),
+    'get_servicios': ('general', 'catalogos_ver'),
+    'get_doctores': ('general', 'catalogos_ver'),
+    'get_doctor': ('general', 'catalogos_ver'),
+    'get_estado_doctores': ('general', 'catalogos_ver'),
+    'dashboard_doctores': ('general', 'catalogos_ver'),
+    'get_areas_sede': ('catalogo_sede', 'catalogos_ver'),
+    'get_servicios_sede': ('catalogo_sede', 'catalogos_ver'),
+    'turnos_area_sede': ('area_id', 'turnos_ver'),
+    'caja_turnos': ('area_query_caja', 'turnos_ver'),
+    'trabajo_social_turnos': ('area_query_social', 'trabajo_social_ver'),
+    'get_atenciones': ('sede_propia', 'atenciones_ver'),
+    'get_turnos': ('sede_propia', 'turnos_ver'),
+    'buscar_paciente_control': ('area_caja', 'recepcion_ver'),
+    'registrar_control': ('area_json_caja', 'recepcion_registrar'),
+    'crear_turno': ('area_json_caja', 'turnos_crear_legacy'),
+    'llamar_turno': ('turno', 'turnos_llamar'),
+    'iniciar_turno': ('turno', 'turnos_iniciar'),
+    'omitir_turno': ('turno', 'turnos_omitir'),
+    'pausar_turno': ('turno', 'turnos_pausar'),
+    'reanudar_turno': ('turno', 'turnos_reanudar'),
+    'ajustar_tiempo_pausa': ('pausa', 'turnos_pausas_ajustar'),
+    'finalizar_turno': ('turno', 'turnos_finalizar'),
+    'transicionar_turno': ('turno', 'turnos_transicionar'),
+    'mover_turno': ('turno', 'turnos_mover'),
+    'solicitar_servicio_turno': ('turno', 'servicios_solicitar'),
+    'trabajo_social_afiliar': ('turno', 'trabajo_social_afiliar'),
+    'crear_solicitud_area': ('turno', 'solicitudes_crear'),
+    'iniciar_solicitud_area': ('solicitud_origen', 'solicitudes_iniciar'),
+    'avanzar_solicitud_area': ('solicitud_caja', 'solicitudes_avanzar'),
+    'cancelar_solicitud_area': ('solicitud_origen', 'solicitudes_cancelar'),
+    'completar_solicitud_area': ('solicitud_destino', 'solicitudes_completar'),
+    'activar_retorno_solicitud_area': ('solicitud_origen', 'solicitudes_retorno_activar'),
+    'omitir_retorno_solicitud_area': ('solicitud_origen', 'solicitudes_retorno_omitir'),
+    'derivar_servicio_externo': ('atencion_servicio', 'servicios_derivar_externo'),
+    'actualizar_estado_doctor': ('administracion', 'doctores_gestionar'),
+    'actualizar_servicio_sede': ('administracion', 'configuracion_gestionar'),
+    'actualizar_area_sede': ('administracion', 'configuracion_gestionar'),
+}
+
+
+def _rechazar_acceso(mensaje, estado=403):
+    return jsonify({'success': False, 'error': mensaje}), estado
+
+
+def _area_autorizada(sede_id, codigo_area):
+    return verificar_area(current_user, sede_id, codigo_area)
+
+
+def _comprobar_sede_propia(sede_id):
+    return sede_id is not None and sede_id == current_user.sede_id
+
+
+@bp.before_request
+def comprobar_autorizacion_api():
+    """Rechaza por defecto rutas no declaradas y cruces de sede/área."""
+    nombre_endpoint = (request.endpoint or '').split('.')[-1]
+    politica = _POLITICAS_API.get(nombre_endpoint)
+    if politica is None:
+        return _rechazar_acceso('Endpoint sin política de autorización')
+
+    alcance, codigo_permiso = politica
+    if alcance == 'publico':
+        return None
+
+    if not current_user.is_authenticated:
+        return _rechazar_acceso('Debe iniciar sesión', 401)
+    if not current_user.is_active or not current_user.activo:
+        return _rechazar_acceso('Operador inactivo')
+    if not verificar_permiso(codigo_permiso):
+        return _rechazar_acceso('No tiene permiso para esta acción')
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and request.is_json:
+        cuerpo = request.get_json(silent=True)
+        if cuerpo is not None and not isinstance(cuerpo, dict):
+            return _rechazar_acceso('El cuerpo JSON debe ser un objeto', 400)
+
+    valores = request.view_args or {}
+
+    if alcance == 'general':
+        return None
+    if alcance == 'administracion':
+        if current_user.rol != 'ADMIN' or not verificar_permiso('admin_acceder'):
+            return _rechazar_acceso('Acción exclusiva de administración')
+        return None
+
+    # Las operaciones sobre una sede no deben exponer otras sedes.
+    if alcance == 'catalogo_sede':
+        if current_user.rol == 'ADMIN' and verificar_permiso('admin_acceder'):
+            return None
+        if _comprobar_sede_propia(valores.get('sede_id')):
+            return None
+        return _rechazar_acceso('No tiene autorización para esta sede')
+
+    if alcance == 'sede_propia':
+        if current_user.sede_id is None:
+            return _rechazar_acceso('Sede no asignada')
+        asignaciones = OperadorArea.query.filter_by(
+            operador_id=current_user.id,
+            sede_id=current_user.sede_id,
+            activo=True
+        ).all()
+        if not any(
+            a.area and verificar_area(current_user, current_user.sede_id, a.area.codigo)
+            for a in asignaciones
+        ):
+            return _rechazar_acceso('No tiene un área activa asignada')
+        return None
+
+    if alcance == 'area_caja':
+        if _area_autorizada(current_user.sede_id, 'CAJA'):
+            return None
+        return _rechazar_acceso('No tiene autorización para Recepción/Caja')
+
+    if alcance in ('area_json_caja', 'area_query_caja', 'area_query_social'):
+        if alcance == 'area_json_caja':
+            datos = request.get_json(silent=True)
+            if not isinstance(datos, dict):
+                return _rechazar_acceso('Se requiere un objeto JSON', 400)
+            sede_id = datos.get('sede_id')
+        else:
+            sede_id = request.args.get('sede_id')
+        if sede_id is None or sede_id == '':
+            return _rechazar_acceso('sede_id es requerido', 400)
+        try:
+            sede_id = int(sede_id)
+        except (TypeError, ValueError):
+            return _rechazar_acceso('sede_id no es válido', 400)
+        sede = db.session.get(Sede, sede_id)
+        if not sede:
+            return _rechazar_acceso('Sede no encontrada', 404)
+        if not sede.activo:
+            return _rechazar_acceso('La sede está inactiva', 409)
+        codigo = 'TRABAJO_SOCIAL' if alcance == 'area_query_social' else 'CAJA'
+        if not _area_autorizada(sede_id, codigo):
+            return _rechazar_acceso('No tiene autorización para esta sede y área')
+        return None
+
+    if alcance == 'area_id':
+        sede_id = valores.get('sede_id')
+        area = db.session.get(Area, valores.get('area_id'))
+        if not area:
+            return _rechazar_acceso('Área no encontrada', 404)
+        if not _area_autorizada(sede_id, area.codigo):
+            return _rechazar_acceso('No tiene autorización para esta área')
+        return None
+
+    if alcance == 'turno':
+        turno = db.session.get(TurnoArea, valores.get('turno_id'))
+        if turno is None:
+            return _rechazar_acceso('Turno no encontrado', 404)
+        if not verificar_acceso_turno(current_user, turno, codigo_permiso):
+            return _rechazar_acceso('No tiene autorización para este turno')
+        return None
+
+    if alcance == 'pausa':
+        pausa = db.session.get(PausaTurno, valores.get('pausa_id'))
+        if pausa is None:
+            return _rechazar_acceso('Pausa no encontrada', 404)
+        if pausa.turno_area is None or not verificar_acceso_turno(
+            current_user, pausa.turno_area, codigo_permiso
+        ):
+            return _rechazar_acceso('No tiene autorización para esta pausa')
+        return None
+
+    if alcance.startswith('solicitud_'):
+        solicitud = db.session.get(SolicitudArea, valores.get('solicitud_id'))
+        if solicitud is None:
+            return _rechazar_acceso('Solicitud no encontrada', 404)
+        if solicitud.atencion is None:
+            return _rechazar_acceso('Atención no encontrada', 404)
+        sede_id = solicitud.atencion.sede_id
+        if alcance == 'solicitud_caja':
+            codigo_area = 'CAJA'
+        else:
+            area = (
+                solicitud.area_destino if alcance == 'solicitud_destino'
+                else solicitud.area_origen
+            )
+            if area is None:
+                return _rechazar_acceso('Área de la solicitud no encontrada', 409)
+            codigo_area = area.codigo
+        if not _area_autorizada(sede_id, codigo_area):
+            return _rechazar_acceso('No tiene autorización para esta solicitud')
+        # Iniciar una solicitud puede desplazar el turno activo.
+        # Por tanto, también debe autorizarse el área ACTUAL del paciente.
+        if nombre_endpoint == 'iniciar_solicitud_area':
+            actual = (
+                TurnoArea.query
+                .filter(
+                    TurnoArea.atencion_id == solicitud.atencion.id,
+                    TurnoArea.estado.in_(('ESPERA', 'LLAMADO', 'EN_ATENCION', 'PAUSADO'))
+                )
+                .order_by(TurnoArea.id.desc())
+                .first()
+            )
+            if actual is None:
+                return _rechazar_acceso('La atención no tiene turno activo', 409)
+            if not verificar_acceso_turno(current_user, actual, codigo_permiso):
+                return _rechazar_acceso('No puede mover un turno de otra área')
+        return None
+
+    if alcance == 'atencion_servicio':
+        item = db.session.get(AtencionServicio, valores.get('atencion_servicio_id'))
+        if item is None:
+            return _rechazar_acceso('Servicio de atención no encontrado', 404)
+        if item.atencion is None or item.servicio is None or item.servicio.area is None:
+            return _rechazar_acceso('Servicio de atención incompleto', 409)
+        if not _area_autorizada(item.atencion.sede_id, item.servicio.area.codigo):
+            return _rechazar_acceso('No tiene autorización para este servicio')
+        return None
+
+    # Jamás permitir implícitamente políticas futuras desconocidas.
+    return _rechazar_acceso('Política de autorización no reconocida')
+
 
 
 # =====================================================
@@ -1467,11 +1701,11 @@ def turnos_area_sede(sede_id, area_id):
 # =====================================================
 # ACCIONES GENÉRICAS DE TURNO
 # =====================================================
-
 @bp.route(
     '/turnos/<int:turno_id>/llamar',
     methods=['POST']
 )
+@requiere_permiso('turnos_llamar')
 def llamar_turno(turno_id):
     try:
         # =============================================
@@ -1490,24 +1724,38 @@ def llamar_turno(turno_id):
             }), 404
 
         # =============================================
-        # 2. LEER DATOS
+        # 2. VALIDAR ACCESO AL TURNO
+        # =============================================
+
+        if not verificar_acceso_turno(
+            current_user,
+            turno,
+            'turnos_llamar'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene autorización para '
+                    'llamar este turno'
+                )
+            }), 403
+
+        # =============================================
+        # 3. LEER DATOS
         # =============================================
 
         data = request.get_json(
             silent=True
         ) or {}
 
-        usuario = (
-            data.get('usuario')
-            or 'sistema'
-        )
+        usuario = current_user.usuario
 
         motivo = data.get(
             'motivo'
         )
 
         # =============================================
-        # 3. EJECUTAR ACCIÓN DEL CORE
+        # 4. EJECUTAR ACCIÓN DEL CORE
         # =============================================
 
         aplicar_accion_turno(
@@ -1518,13 +1766,13 @@ def llamar_turno(turno_id):
         )
 
         # =============================================
-        # 4. GUARDAR
+        # 5. GUARDAR
         # =============================================
 
         db.session.commit()
 
         # =============================================
-        # 5. RESPUESTA
+        # 6. RESPUESTA
         # =============================================
 
         return jsonify({
@@ -1553,11 +1801,12 @@ def llamar_turno(turno_id):
             'error': str(e)
         }), 500
 
-
+    
 @bp.route(
     '/turnos/<int:turno_id>/iniciar',
     methods=['POST']
 )
+@requiere_permiso('turnos_iniciar')
 def iniciar_turno(turno_id):
     try:
         # =============================================
@@ -1576,6 +1825,23 @@ def iniciar_turno(turno_id):
             }), 404
 
         # =============================================
+        # VALIDAR ACCESO AL TURNO
+        # =============================================
+
+        if not verificar_acceso_turno(
+            current_user,
+            turno,
+            'turnos_iniciar'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene autorización para '
+                    'iniciar este turno'
+                )
+            }), 403
+
+        # =============================================
         # 2. LEER DATOS
         # =============================================
 
@@ -1583,10 +1849,7 @@ def iniciar_turno(turno_id):
             silent=True
         ) or {}
 
-        usuario = (
-            data.get('usuario')
-            or 'sistema'
-        )
+        usuario = current_user.usuario
 
         motivo = data.get(
             'motivo'
@@ -1645,6 +1908,7 @@ def iniciar_turno(turno_id):
     '/turnos/<int:turno_id>/omitir',
     methods=['POST']
 )
+@requiere_permiso('turnos_omitir')
 def omitir_turno(turno_id):
     try:
         # =============================================
@@ -1663,6 +1927,23 @@ def omitir_turno(turno_id):
             }), 404
 
         # =============================================
+        # VALIDAR ACCESO AL TURNO
+        # =============================================
+
+        if not verificar_acceso_turno(
+            current_user,
+            turno,
+            'turnos_omitir'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene autorización para '
+                    'omitir este turno'
+                )
+            }), 403
+
+        # =============================================
         # 2. LEER DATOS
         # =============================================
 
@@ -1670,10 +1951,7 @@ def omitir_turno(turno_id):
             silent=True
         ) or {}
 
-        usuario = (
-            data.get('usuario')
-            or 'sistema'
-        )
+        usuario = current_user.usuario
 
         motivo = (
             data.get('motivo')
@@ -1811,10 +2089,7 @@ def pausar_turno(turno_id):
             or ''
         ).strip()
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         tiempo_minutos = (
             data.get('tiempo_objetivo_minutos')
@@ -2037,10 +2312,7 @@ def reanudar_turno(turno_id):
             silent=True
         ) or {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         motivo = str(
             data.get('motivo')
@@ -2231,10 +2503,7 @@ def ajustar_tiempo_pausa(pausa_id):
             silent=True
         ) or {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         nuevo_total_minutos = (
             data.get('tiempo_objetivo_minutos')
@@ -2554,10 +2823,7 @@ def finalizar_turno(turno_id):
             silent=True
         ) or {}
 
-        usuario = (
-            data.get('usuario')
-            or 'sistema'
-        )
+        usuario = current_user.usuario
 
         motivo = (
             data.get('motivo')
@@ -2717,10 +2983,7 @@ def transicionar_turno(turno_id):
                 'error': 'evento es requerido'
             }), 400
 
-        usuario = (
-            data.get('usuario')
-            or 'sistema'
-        )
+        usuario = current_user.usuario
 
         motivo = (
             data.get('motivo')
@@ -2789,42 +3052,34 @@ def transicionar_turno(turno_id):
 
 
         # =============================================
-        # 6. VALIDAR PAGOS ANTES DE AVANZAR
+        # 6. VALIDAR PAGOS DEL ÁREA DE DESTINO
         # =============================================
-
-        # La validación de pago se realiza únicamente
-        # al intentar ingresar al destino final.
-        llego_al_destino = (
-            siguiente_area_id == solicitud.area_destino_id
+        # Los servicios pendientes de pago impiden avanzar.
+        # Se usan la atención y el área reales del turno.
+        servicios_sin_pago = (
+            AtencionServicio.query
+            .join(Servicio, Servicio.id == AtencionServicio.servicio_id)
+            .filter(
+                AtencionServicio.atencion_id == atencion.id,
+                Servicio.area_id == area_destino.id,
+                AtencionServicio.requiere_pago.is_(True),
+                AtencionServicio.pagado.is_(False),
+                AtencionServicio.estado.notin_(['COMPLETADO', 'CANCELADO'])
+            )
+            .all()
         )
 
-        if llego_al_destino:
-
-            servicios_sin_pago = [
-                servicio
-                for servicio in solicitud.servicios
-                if servicio.requiere_pago
-                and not servicio.pagado
-            ]
-
-            if servicios_sin_pago:
-
-                nombres_servicios = [
-                    servicio.servicio.nombre
-                    if servicio.servicio
-                    else f'Servicio #{servicio.servicio_id}'
-                    for servicio in servicios_sin_pago
+        if servicios_sin_pago:
+            return jsonify({
+                'success': False,
+                'error': 'Existen servicios pendientes de pago para el área destino',
+                'servicios_pendientes': [
+                    item.servicio.nombre if item.servicio
+                    else f'Servicio #{item.servicio_id}'
+                    for item in servicios_sin_pago
                 ]
+            }), 409
 
-                return jsonify({
-                    'success': False,
-                    'error': (
-                        'No se puede avanzar a Gabinete. '
-                        'Existen servicios pendientes de pago.'
-                    ),
-                    'solicitud_id': solicitud.id,
-                    'servicios_pendientes': nombres_servicios
-                }), 409
         # =============================================
         # 6. MOVER TURNO USANDO EL CORE
         # =============================================
@@ -3098,13 +3353,10 @@ def iniciar_solicitud_area(solicitud_id):
             silent=True
         ) or {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         if not usuario:
-            usuario = 'sistema'
+            usuario = current_user.usuario
 
         ahora = datetime.utcnow()
 
@@ -3413,14 +3665,7 @@ def avanzar_solicitud_area(solicitud_id):
                 'error': 'Operador inactivo'
             }), 403
 
-        if current_user.rol not in ('ADMIN', 'RECEPCION'):
-            return jsonify({
-                'success': False,
-                'error': (
-                    'No tiene permiso para autorizar '
-                    'el movimiento del paciente'
-                )
-            }), 403
+        # Autorización por permiso y área aplicada en el control central.
 
         # =============================================
         # 2. BUSCAR SOLICITUD
@@ -3831,13 +4076,10 @@ def cancelar_solicitud_area(solicitud_id):
             or ''
         ).strip()
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         if not usuario:
-            usuario = 'sistema'
+            usuario = current_user.usuario
 
         if not motivo_cancelacion:
             return jsonify({
@@ -4135,13 +4377,10 @@ def completar_solicitud_area(solicitud_id):
             silent=True
         ) or {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         if not usuario:
-            usuario = 'sistema'
+            usuario = current_user.usuario
 
         observacion = str(
             data.get('observacion')
@@ -4489,13 +4728,10 @@ def activar_retorno_solicitud_area(solicitud_id):
             silent=True
         ) or {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         if not usuario:
-            usuario = 'sistema'
+            usuario = current_user.usuario
 
         # =============================================
         # 9. CREAR NUEVO TURNO DE RETORNO
@@ -4732,13 +4968,10 @@ def omitir_retorno_solicitud_area(solicitud_id):
             silent=True
         ) or {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         if not usuario:
-            usuario = 'sistema'
+            usuario = current_user.usuario
 
         motivo = str(
             data.get('motivo')
@@ -4935,10 +5168,7 @@ def solicitar_servicio_turno(turno_id):
                 'error': 'servicio_id no es válido'
             }), 400
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         motivo = str(
             data.get('motivo')
@@ -5879,6 +6109,7 @@ def buscar_paciente_control():
 
 
 @bp.route('/control/registrar', methods=['POST'])
+@requiere_permiso('recepcion_registrar')
 def registrar_control():
     try:
         data = request.get_json(
@@ -5929,6 +6160,23 @@ def registrar_control():
                 'success': False,
                 'error': 'La sede está inactiva'
             }), 400
+
+                # =================================================
+        # VALIDAR ÁREA AUTORIZADA DEL OPERADOR
+        # =================================================
+
+        if not verificar_area(
+            current_user,
+            sede_id,
+            'CAJA'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene autorización para registrar '
+                    'pacientes en esta sede y área'
+                )
+            }), 403
 
         # =================================================
         # DATOS BÁSICOS
@@ -6032,11 +6280,11 @@ def registrar_control():
             'observaciones'
         )
 
-        usuario = (
-            data.get('usuario')
-            or data.get('creado_por')
-            or 'control'
-        )
+        # =================================================
+        # IDENTIDAD DEL OPERADOR AUTENTICADO
+        # =================================================
+
+        usuario = current_user.usuario
 
         # =================================================
         # VALIDAR TIPO DE LLEGADA
@@ -7036,11 +7284,8 @@ def get_atenciones():
     try:
         atenciones = (
             Atencion.query
-            .order_by(
-                Atencion
-                .fecha_hora_llegada
-                .desc()
-            )
+            .filter(Atencion.sede_id == current_user.sede_id)
+            .order_by(Atencion.fecha_hora_llegada.desc())
             .all()
         )
 
@@ -7181,10 +7426,7 @@ def derivar_servicio_externo(atencion_servicio_id):
         else:
             data = {}
 
-        usuario = str(
-            data.get('usuario')
-            or 'sistema'
-        ).strip()
+        usuario = current_user.usuario
 
         motivo = str(
             data.get('motivo')
@@ -7478,13 +7720,28 @@ def derivar_servicio_externo(atencion_servicio_id):
 )
 def get_turnos():
     try:
+        # Ver solamente los turnos de áreas asignadas en su sede.
+        asignaciones = (
+            OperadorArea.query
+            .filter_by(
+                operador_id=current_user.id,
+                sede_id=current_user.sede_id,
+                activo=True
+            )
+            .all()
+        )
+        areas_autorizadas = [
+            a.area_id for a in asignaciones
+            if a.area and verificar_area(current_user, current_user.sede_id, a.area.codigo)
+        ]
         turnos = (
             TurnoArea.query
-            .order_by(
-                TurnoArea
-                .fecha_entrada_cola
-                .desc()
+            .join(Atencion, Atencion.id == TurnoArea.atencion_id)
+            .filter(
+                Atencion.sede_id == current_user.sede_id,
+                TurnoArea.area_id.in_(areas_autorizadas)
             )
+            .order_by(TurnoArea.fecha_entrada_cola.desc())
             .all()
         )
 
@@ -7642,6 +7899,7 @@ def trabajo_social_turnos():
     '/trabajo-social/<int:turno_id>/afiliar',
     methods=['POST']
 )
+@requiere_permiso('trabajo_social_afiliar')
 def trabajo_social_afiliar(turno_id):
     try:
         # =============================================
@@ -7658,6 +7916,23 @@ def trabajo_social_afiliar(turno_id):
                 'success': False,
                 'error': 'Turno no encontrado'
             }), 404
+
+                # =============================================
+        # VALIDAR ACCESO DEL OPERADOR
+        # =============================================
+
+        if not verificar_acceso_turno(
+            current_user,
+            turno,
+            'trabajo_social_afiliar'
+        ):
+            return jsonify({
+                'success': False,
+                'error': (
+                    'No tiene autorización para '
+                    'afiliar pacientes en esta área'
+                )
+            }), 403
 
         # =============================================
         # 2. COMPROBAR QUE ESTÁ EN TRABAJO SOCIAL
@@ -7714,10 +7989,7 @@ def trabajo_social_afiliar(turno_id):
             or ''
         ).strip()
 
-        usuario = (
-            data.get('usuario')
-            or 'trabajo_social'
-        )
+        usuario = current_user.usuario
 
         if not numero_afiliacion:
             return jsonify({
@@ -8171,12 +8443,7 @@ def crear_turno():
                 )
             ),
 
-            creado_por=(
-                data.get(
-                    'creado_por',
-                    'recepcion'
-                )
-            )
+            creado_por=current_user.usuario
         )
 
         db.session.add(
@@ -8206,10 +8473,7 @@ def crear_turno():
                     'al sistema'
                 ),
 
-                usuario=data.get(
-                    'creado_por',
-                    'recepcion'
-                )
+                usuario=current_user.usuario
             )
         )
 
@@ -8256,13 +8520,8 @@ def crear_turno():
 @login_required
 def crear_solicitud_area(turno_id):
 
-    if current_user.rol != 'ADMIN':
-        return jsonify({
-            'success': False,
-            'error': 'No tiene permiso para crear solicitudes'
-        }), 403
+    # Autorización por permiso y área aplicada en el control central.
 
-    
     try:
         # =============================================
         # 1. BUSCAR TURNO ACTUAL
@@ -9232,10 +9491,7 @@ def mover_turno(turno_id):
         # 8. MOVER TURNO USANDO EL CORE
         # =============================================
 
-        usuario = (
-            data.get('usuario')
-            or 'sistema'
-        )
+        usuario = current_user.usuario
 
         nuevo_turno = mover_turno_a_area(
             turno_actual=turno_actual,

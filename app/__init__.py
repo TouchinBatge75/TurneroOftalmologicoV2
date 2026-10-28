@@ -1,5 +1,6 @@
 
-from flask import Flask, render_template, jsonify
+from flask import Flask, render_template, jsonify, redirect, url_for
+from flask_login import LoginManager, current_user
 from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -112,7 +113,13 @@ def create_app():
 
     @app.route('/')
     def home():
-        return render_template('recepcion.html')
+     if not current_user.is_authenticated:
+        return redirect(url_for('login_page'))
+
+
+    @app.route('/login')
+    def login_page():
+     return render_template('login.html')
 
     @app.route('/recepcion')
     def recepcion():

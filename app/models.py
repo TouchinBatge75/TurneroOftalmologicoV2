@@ -2189,3 +2189,68 @@ class OperadorArea(db.Model):
                 else None
             )
         }
+
+
+    # =====================================================
+# SISTEMA DE PERMISOS - TURNERO V2
+# =====================================================
+
+class Permiso(db.Model):
+    __tablename__ = 'permisos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(100), unique=True, nullable=False)
+    nombre = db.Column(db.String(150), nullable=False)
+    descripcion = db.Column(db.Text)
+    activo = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class RolPermiso(db.Model):
+    __tablename__ = 'rol_permisos'
+
+    id = db.Column(db.Integer, primary_key=True)
+    rol = db.Column(db.String(50), nullable=False)
+    permiso_id = db.Column(
+        db.Integer,
+        db.ForeignKey('permisos.id'),
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'rol',
+            'permiso_id',
+            name='uq_rol_permiso'
+        ),
+    )
+
+
+class OperadorPermiso(db.Model):
+    __tablename__ = 'operador_permisos'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    operador_id = db.Column(
+        db.Integer,
+        db.ForeignKey('operadores.id'),
+        nullable=False
+    )
+
+    permiso_id = db.Column(
+        db.Integer,
+        db.ForeignKey('permisos.id'),
+        nullable=False
+    )
+
+    permitido = db.Column(
+        db.Boolean,
+        nullable=False
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'operador_id',
+            'permiso_id',
+            name='uq_operador_permiso'
+        ),
+    )
