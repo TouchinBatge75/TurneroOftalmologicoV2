@@ -281,10 +281,48 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
   $('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
   $('#footerYear').textContent=new Date().getFullYear();
   $('#dateLabel').textContent=dateFmt.format(new Date());
+  // CSRF centralizado para peticiones que modifican datos.
+  // El servidor debe exponer GET /csrf-token (Flask-WTF).
+  let csrfToken = null;
+  let csrfPending = null;
+
+  async function obtenerCsrfToken(){
+    if(csrfToken) return csrfToken;
+    if(csrfPending) return csrfPending;
+
+    csrfPending = (async()=>{
+      const r = await fetch('/csrf-token', {
+        method:'GET',
+        credentials:'same-origin',
+        cache:'no-store'
+      });
+      if(!r.ok) throw new Error(`No fue posible obtener el token CSRF (HTTP ${r.status})`);
+      const data = await r.json();
+      if(!data.csrf_token) throw new Error('El servidor no devolvió un token CSRF');
+      csrfToken = data.csrf_token;
+      return csrfToken;
+    })();
+
+    try { return await csrfPending; }
+    finally { csrfPending = null; }
+  }
+
   async function api(path, options={}){
-    const r=await fetch(path,{credentials:'same-origin',...options});
-    let data={};try{data=await r.json();}catch{}
-    if(!r.ok||data.success===false)throw new Error(data.error||data.message||`Error HTTP ${r.status}`);
+    const method = String(options.method || 'GET').toUpperCase();
+    const headers = new Headers(options.headers || {});
+    if(['POST','PUT','PATCH','DELETE'].includes(method)){
+      headers.set('X-CSRFToken', await obtenerCsrfToken());
+    }
+
+    const r = await fetch(path, {
+      ...options,
+      method,
+      credentials:'same-origin',
+      headers
+    });
+    let data={};
+    try{data=await r.json();}catch{}
+    if(!r.ok||data.success===false) throw new Error(data.error||data.message||`Error HTTP ${r.status}`);
     return data;
   }
   function demoSetup(){
@@ -352,16 +390,73 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
     const rows=state.notificaciones.filter(n=>state.notifilter==='todas'||!n.leida);
     $('#fullNotifications').innerHTML=rows.length?rows.map(n=>`<article class="notification-row"><div><h3>${n.leida?'':'● '}${clean(n.titulo)}</h3><p>${clean(n.mensaje)}</p><small>${clean(formatTime(n.fecha_creacion))} · Prioridad ${clean(n.prioridad)} · ${n.leida?'Leída':'Pendiente'}</small></div>${n.leida?'':`<button class="btn small" data-read="${Number(n.id)}">Marcar leída</button>`}</article>`).join(''):'<div class="empty"><b>Todo al día</b>No se encontraron notificaciones pendientes.</div>';
   }
-  async function readNotification(id){
-    if(state.demo){const n=state.notificaciones.find(x=>Number(x.id)===id);if(n)n.leida=true;renderNotifications();showToast('Notificación marcada como leída (simulación).');return;}
-    try{
-      const tokenData=await api('/api/notificaciones/csrf-token');
-      const token=tokenData.csrf_token||tokenData.token;
-      if(!token)throw new Error('No fue posible obtener el token CSRF de lectura');
-      await api(`/api/notificaciones/${id}/leer`,{method:'PATCH',headers:{'Content-Type':'application/json','X-CSRFToken':token,'X-CSRF-Token':token},body:JSON.stringify({csrf_token:token})});
-      await loadNotifications();showToast('Notificación marcada como leída.');
-    }catch(err){showToast(`No se pudo marcar como leída: ${err.message}`);}
-  }
+  
+async function readNotification(id) {
+
+    if (state.demo) {
+        const n = state.notificaciones.find(
+            x => Number(x.id) === id
+        );
+
+        if (n) n.leida = true;
+
+        renderNotifications();
+
+        showToast(
+            'Notificación marcada como leída (simulación).'
+        );
+
+        return;
+    }
+
+    try {
+
+        const tokenData = await api(
+            '/api/notificaciones/csrf-token'
+        );
+
+        const tokenNotificaciones =
+            tokenData.csrf_token || tokenData.token;
+
+        if (!tokenNotificaciones) {
+            throw new Error(
+                'No fue posible obtener el token de notificaciones'
+            );
+        }
+
+        await api(
+            `/api/notificaciones/${id}/leer`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+
+                    // Token exclusivo de notificaciones.
+                    'X-CSRF-Token': tokenNotificaciones
+                },
+                body: JSON.stringify({
+                    csrf_token: tokenNotificaciones
+                })
+            }
+        );
+
+        await loadNotifications();
+
+        renderNotifications();
+
+        showToast(
+            'Notificación marcada como leída.'
+        );
+
+    } catch (err) {
+
+        showToast(
+            'No se pudo marcar como leída: ' +
+            err.message
+        );
+    }
+}
+
   function detail(title,fields){setText('#detailTitle',title);$('#detailBody').innerHTML=`<div class="detail-grid">${fields.map(([k,v])=>`<div><small>${clean(k)}</small><strong>${clean(v)}</strong></div>`).join('')}</div>`;$('#detailBackdrop').classList.remove('hidden');$('#detailClose').focus();}
   document.addEventListener('click',e=>{
     const td=e.target.closest('[data-detail-turno]');if(td){const t=state.caja.find(x=>Number(x.id)===Number(td.dataset.detailTurno));if(t)detail(t.numero_turno,[['Paciente',t.paciente?.nombre_completo],['Folio de atención',t.atencion?.folio],['Estado',stateLabel(t.estado)],['Prioridad',t.tipo_prioridad],['Fecha de ingreso',formatTime(t.fecha_entrada_cola)],['Servicios',(t.servicios||[]).map(s=>s.nombre).join(', ')||'Sin servicios asociados'],['ID del turno',t.id],['ID de atención',t.atencion?.id]]);}
@@ -389,13 +484,13 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
   function displayLogin(){$('#app').classList.add('hidden');$('#login').classList.remove('hidden');}
   $('#loginForm').addEventListener('submit',async e=>{
     e.preventDefault();$('#loginSubmit').disabled=true;$('#loginError').classList.add('hidden');
-    try{const result=await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:$('#loginUser').value.trim(),password:$('#loginPass').value})});state.user=result.operador;$('#loginPass').value='';displayApp();}
+    try{const result=await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:$('#loginUser').value.trim(),password:$('#loginPass').value})});state.user=result.operador;csrfToken=null;$('#loginPass').value='';displayApp();}
     catch(err){$('#loginError').textContent=err.message;$('#loginError').classList.remove('hidden');}
     finally{$('#loginSubmit').disabled=false;}
   });
   $('#logoutBtn').addEventListener('click',async()=>{
     if(state.demo){showToast('Esta es una vista de ejemplo. Para usar sesión real, abre el HTML desde Flask.');return;}
-    try{await api('/auth/logout',{method:'POST'});state.user=null;displayLogin();}catch(err){showToast('No se pudo cerrar la sesión: '+err.message);}
+    try{await api('/auth/logout',{method:'POST'});csrfToken=null;state.user=null;displayLogin();}catch(err){showToast('No se pudo cerrar la sesión: '+err.message);}
   });
   $('#registerForm').addEventListener('submit',async e=>{
     e.preventDefault();const u=state.user;if(!u)return;

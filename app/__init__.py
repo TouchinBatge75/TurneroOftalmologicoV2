@@ -1,9 +1,17 @@
 
-from flask import Flask, render_template, jsonify, redirect, url_for
+from flask import (
+    Flask,
+    render_template,
+    jsonify,
+    redirect,
+    url_for,
+    abort
+)
+
 from flask_login import LoginManager, current_user
-from flask_login import LoginManager
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from config import Config
 
@@ -15,6 +23,7 @@ from config import Config
 db = SQLAlchemy()
 migrate = Migrate()
 login_manager = LoginManager()
+csrf = CSRFProtect()
 
 
 # =====================================================
@@ -28,29 +37,26 @@ def create_app():
         template_folder='../templates'
     )
 
-    # =============================================
-    # CONFIGURACIÓN
-    # =============================================
-
     app.config.from_object(Config)
 
-    # =============================================
+    # =================================================
     # INICIALIZAR EXTENSIONES
-    # =============================================
+    # =================================================
 
     db.init_app(app)
     migrate.init_app(app, db)
     login_manager.init_app(app)
+    csrf.init_app(app)
 
-    # =============================================
-    # IMPORTAR MODELOS
-    # =============================================
+    # =================================================
+    # MODELOS
+    # =================================================
 
     from app import models
 
-    # =============================================
-    # CARGAR OPERADOR AUTENTICADO
-    # =============================================
+    # =================================================
+    # AUTENTICACION
+    # =================================================
 
     @login_manager.user_loader
     def cargar_operador(operador_id):
@@ -64,10 +70,6 @@ def create_app():
         except (TypeError, ValueError):
             return None
 
-    # =============================================
-    # ACCESO NO AUTORIZADO
-    # =============================================
-
     @login_manager.unauthorized_handler
     def acceso_no_autorizado():
 
@@ -76,9 +78,9 @@ def create_app():
             'error': 'Debe iniciar sesión'
         }), 401
 
-    # =============================================
-    # REGISTRAR BLUEPRINTS
-    # =============================================
+    # =================================================
+    # BLUEPRINTS
+    # =================================================
 
     from app import routes
     app.register_blueprint(routes.bp)
@@ -92,57 +94,68 @@ def create_app():
     )
 
     from app import admin_asignaciones
-
     app.register_blueprint(
         admin_asignaciones.bp_admin_asignaciones
     )
 
     from app import notificaciones
-
     app.register_blueprint(
         notificaciones.bp_notificaciones
     )
 
     from app.admin_operador_areas import bp_admin_operador_areas
-
     app.register_blueprint(bp_admin_operador_areas)
 
-    # =============================================
-    # RUTAS DE INTERFAZ
-    # =============================================
+    # =================================================
+    # INTERFACES V2
+    # =================================================
 
     @app.route('/')
     def home():
-     if not current_user.is_authenticated:
-        return redirect(url_for('login_page'))
 
+        if not current_user.is_authenticated:
+            return redirect(url_for('login_page'))
+
+        return redirect(url_for('recepcion'))
 
     @app.route('/login')
     def login_page():
-     return render_template('login.html')
+        return render_template('login.html')
 
     @app.route('/recepcion')
     def recepcion():
         return render_template('recepcion.html')
 
+    # =================================================
+    # INTERFACES V1 DESHABILITADAS TEMPORALMENTE
+    # =================================================
+
     @app.route('/doctor/login')
     def doctor_login():
-        return render_template('doctor_login.html')
+        abort(404)
 
     @app.route('/doctor/dashboard')
     def doctor_dashboard():
-        return render_template('doctor_dashboard.html')
+        abort(404)
 
     @app.route('/toma-calculos')
     def toma_calculos():
-        return render_template(
-            'toma_calculos_dashboard.html'
-        )
+        abort(404)
 
     @app.route('/trabajo-social')
     def trabajo_social():
-        return render_template(
-            'trabajo_social_dashboard.html'
-        )
+        abort(404)
 
+    # =================================================
+    # CSRF CENTRALIZADO
+    # =================================================
+
+    @app.route('/csrf-token', methods=['GET'])
+    def obtener_csrf_token():
+
+        return jsonify({
+            'success': True,
+            'csrf_token': generate_csrf()
+        })
+    
     return app
