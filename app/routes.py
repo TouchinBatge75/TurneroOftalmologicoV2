@@ -7,6 +7,9 @@ from sqlalchemy import text
 from flask_login import current_user, login_required
 
 from app import db
+from app.recorridos import preparar_asignacion_recorrido
+
+
 from app.models import (
     Doctor,
     Paciente,
@@ -5320,6 +5323,26 @@ def solicitar_servicio_turno(turno_id):
             orden=orden
         )
 
+                
+        # =================================================
+        # VINCULAR RECORRIDO PUBLICADO AL SERVICIO
+        # =================================================
+
+        asignacion = preparar_asignacion_recorrido(
+            sede_id=atencion.sede_id,
+            servicio_id=servicio.id
+        )
+
+        if asignacion["success"]:
+            atencion_servicio.recorrido_id = (
+                asignacion["recorrido_id"]
+            )
+
+            atencion_servicio.paso_actual_id = (
+                asignacion["paso_actual_id"]
+            )
+
+
         db.session.add(
             atencion_servicio
         )
@@ -6615,6 +6638,7 @@ def registrar_control():
             f'TV-{atencion.id:06d}'
         )
 
+        
         # =================================================
         # REGISTRAR SERVICIOS SOLICITADOS
         # =================================================
@@ -6645,6 +6669,28 @@ def registrar_control():
                 orden=orden
             )
 
+            # =============================================
+            # VINCULAR RECORRIDO PUBLICADO
+            # =============================================
+
+            asignacion = preparar_asignacion_recorrido(
+                sede_id=atencion.sede_id,
+                servicio_id=servicio.id
+            )
+
+            if asignacion["success"]:
+                atencion_servicio.recorrido_id = (
+                    asignacion["recorrido_id"]
+                )
+
+                atencion_servicio.paso_actual_id = (
+                    asignacion["paso_actual_id"]
+                )
+
+            # =============================================
+            # GUARDAR SERVICIO EN LA SESIÓN
+            # =============================================
+
             db.session.add(
                 atencion_servicio
             )
@@ -6653,7 +6699,7 @@ def registrar_control():
                 'servicio_id': servicio.id,
                 'codigo': servicio.codigo,
                 'nombre': servicio.nombre,
-                 'modalidad': (
+                'modalidad': (
                     configuraciones_servicios[
                         servicio.id
                     ].modalidad

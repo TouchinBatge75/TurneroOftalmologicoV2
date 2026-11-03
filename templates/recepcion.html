@@ -239,6 +239,13 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
               <div class="form-field"><label for="fPaterno">Apellido paterno *</label><input class="input" id="fPaterno" maxlength="100" required></div>
               <div class="form-field"><label for="fMaterno">Apellido materno</label><input class="input" id="fMaterno" maxlength="100"></div>
               <div class="form-field"><label for="fAfiliado">Afiliación</label><select class="input" id="fAfiliado"><option value="false">No afiliado</option><option value="true">Afiliado</option></select></div>
+              <div class="form-field span2">
+                <label for="fServicios">Servicios solicitados *</label>
+                <select class="input" id="fServicios" multiple size="6" required aria-describedby="serviciosAyuda" style="min-height:155px">
+                  <option value="" disabled>Cargando servicios disponibles...</option>
+                </select>
+                <div class="sub" id="serviciosAyuda" style="margin-top:6px">Selecciona uno o varios servicios (Ctrl + clic para elegir varios).</div>
+              </div>
               <div class="form-field span2"><label for="fObservaciones">Observaciones (opcional)</label><textarea class="input" id="fObservaciones" maxlength="1000" placeholder="Información operativa relevante..."></textarea></div>
             </div><div class="form-actions"><span class="sub" style="margin-right:auto">* Campos obligatorios · Sede: <b id="formSede">—</b></span><button type="reset" class="btn">Limpiar</button><button type="submit" id="registerSubmit" class="btn primary"><svg width="16" height="16"><use href="#i-plus"/></svg> Registrar ingreso</button></div></form><div id="registerResult" class="callout hidden" role="status" style="margin-top:18px"></div>
             </div>
@@ -354,9 +361,41 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
     setText('#sedeName',`Sede ${state.sede?.nombre||('#'+u.sede_id)}`);setText('#stationSede',state.sede?.nombre||('#'+u.sede_id));setText('#formSede',state.sede?.nombre||('#'+u.sede_id));
   }
   function setConnection(ok,when){$('#connectionDot').classList.toggle('off',!ok);$('#stampDot').classList.toggle('off',!ok);setText('#connectionText',state.demo?'Datos de ejemplo':ok?'Servidor local':'Sin conexión');setText('#stampText',state.demo?'Modo demostración':ok?'Datos actualizados':'Actualización fallida');setText('#updateTime',when||'');setText('#stationUpdate',when||'—');}
+  async function loadServiciosRegistro(){
+    const select=$('#fServicios');
+    select.replaceChildren();
+    const aviso=document.createElement('option');
+    aviso.value='';aviso.textContent='Cargando servicios...';aviso.disabled=true;
+    select.appendChild(aviso);
+    select.disabled=true;
+    try {
+      const sedeId=state.user?.sede_id;
+      if(!sedeId)throw new Error('El operador no tiene sede asignada');
+      const resultado=state.demo ? {servicios:[
+        {servicio_id:1,servicio:'Consulta Oftalmológica',modalidad:'INTERNO',disponible:true},
+        {servicio_id:2,servicio:'Agudeza Visual',modalidad:'INTERNO',disponible:true}
+      ]} : await api(`/api/sedes/${encodeURIComponent(sedeId)}/servicios`);
+      const disponibles=(resultado.servicios||[]).filter(x=>x.disponible===true&&x.modalidad==='INTERNO');
+      select.replaceChildren();
+      for(const servicio of disponibles){
+        const option=document.createElement('option');
+        option.value=String(servicio.servicio_id);
+        option.textContent=`${servicio.servicio} — ${servicio.area||'Área por definir'}`;
+        select.appendChild(option);
+      }
+      select.disabled=disponibles.length===0;
+      $('#serviciosAyuda').textContent=disponibles.length
+        ? 'Selecciona uno o varios servicios (Ctrl + clic para elegir varios).'
+        : 'No hay servicios internos disponibles para esta sede.';
+    }catch(err){
+      select.replaceChildren();
+      $('#serviciosAyuda').textContent=`No fue posible cargar servicios: ${err.message}`;
+      showToast('Error al cargar servicios: '+err.message);
+    }
+  }
   function navigate(target){
     state.view=target;$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===target));$$('.view').forEach(e=>e.classList.toggle('active',e.id==='view-'+target));
-    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();
+    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();if(target==='registro')loadServiciosRegistro();
     window.scrollTo({top:0,behavior:'smooth'});
   }
   $$('[data-view]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
@@ -494,8 +533,9 @@ async function readNotification(id) {
   });
   $('#registerForm').addEventListener('submit',async e=>{
     e.preventDefault();const u=state.user;if(!u)return;
-    const payload={sede_id:u.sede_id,nombre:$('#fNombre').value.trim(),apellido_paterno:$('#fPaterno').value.trim(),apellido_materno:$('#fMaterno').value.trim(),tipo_llegada:'SIN_CITA',afiliado:$('#fAfiliado').value==='true',servicios_ids:[],observaciones:$('#fObservaciones').value.trim(),usuario:u.usuario};
+    const payload={sede_id:u.sede_id,nombre:$('#fNombre').value.trim(),apellido_paterno:$('#fPaterno').value.trim(),apellido_materno:$('#fMaterno').value.trim(),tipo_llegada:'SIN_CITA',afiliado:$('#fAfiliado').value==='true',servicios_ids:[...$('#fServicios').selectedOptions].map(option=>Number(option.value)),observaciones:$('#fObservaciones').value.trim(),usuario:u.usuario};
     if(!payload.nombre||!payload.apellido_paterno){showToast('Escribe el nombre y apellido paterno.');return;}
+    if(payload.servicios_ids.length===0){showToast('Selecciona al menos un servicio para registrar la atención.');return;}
     if(!state.demo&&!confirm('¿Registrar esta atención en la base de datos de Turnero?'))return;
     const btn=$('#registerSubmit');btn.disabled=true;
     try{

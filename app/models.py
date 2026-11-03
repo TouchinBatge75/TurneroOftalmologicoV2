@@ -1125,6 +1125,33 @@ class AtencionServicio(db.Model):
         'SolicitudArea',
         back_populates='servicios'
     )
+    # Recorrido asignado a este servicio.
+    # Conserva la versión elegida cuando inició.
+    recorrido_id = db.Column(
+        db.Integer,
+        db.ForeignKey('recorridos_servicio.id'),
+        nullable=True,
+        index=True
+    )
+
+    # Paso actual dentro del recorrido asignado.
+    paso_actual_id = db.Column(
+        db.Integer,
+        db.ForeignKey('recorrido_pasos.id'),
+        nullable=True
+    )
+
+    recorrido = db.relationship(
+        'RecorridoServicio',
+        foreign_keys=[recorrido_id]
+    )
+
+    paso_actual = db.relationship(
+        'RecorridoPaso',
+        foreign_keys=[paso_actual_id]
+    )
+
+    
     
 
     def __repr__(self):
@@ -2252,5 +2279,135 @@ class OperadorPermiso(db.Model):
             'operador_id',
             'permiso_id',
             name='uq_operador_permiso'
+        ),
+    )
+
+
+    # =====================================================
+# RECORRIDOS CONFIGURABLES POR SEDE Y SERVICIO
+# =====================================================
+
+class RecorridoServicio(db.Model):
+    __tablename__ = 'recorridos_servicio'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    sede_id = db.Column(
+        db.Integer,
+        db.ForeignKey('sedes.id'),
+        nullable=False,
+        index=True
+    )
+
+    servicio_id = db.Column(
+        db.Integer,
+        db.ForeignKey('servicios.id'),
+        nullable=False,
+        index=True
+    )
+
+    version = db.Column(
+        db.Integer,
+        nullable=False,
+        default=1
+    )
+
+    estado_publicacion = db.Column(
+        db.String(20),
+        nullable=False,
+        default='BORRADOR',
+        server_default='BORRADOR'
+    )
+
+    activo = db.Column(
+        db.Boolean,
+        nullable=False,
+        default=False
+    )
+
+    fecha_creacion = db.Column(
+        db.DateTime,
+        nullable=False,
+        default=datetime.utcnow
+    )
+
+    sede = db.relationship('Sede')
+    servicio = db.relationship('Servicio')
+
+    pasos = db.relationship(
+        'RecorridoPaso',
+        back_populates='recorrido',
+        order_by='RecorridoPaso.orden'
+    )
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'sede_id',
+            'servicio_id',
+            'version',
+            name='uq_recorrido_sede_servicio_version'
+        ),
+
+        db.CheckConstraint(
+            'version > 0',
+            name='ck_recorrido_version_positiva'
+        ),
+
+        db.Index(
+            'uq_recorrido_activo_sede_servicio',
+            'sede_id',
+            'servicio_id',
+            unique=True,
+            postgresql_where=db.text('activo IS TRUE')
+        ),
+    )
+
+
+class RecorridoPaso(db.Model):
+    __tablename__ = 'recorrido_pasos'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    recorrido_id = db.Column(
+        db.Integer,
+        db.ForeignKey('recorridos_servicio.id'),
+        nullable=False,
+        index=True
+    )
+
+    area_id = db.Column(
+        db.Integer,
+        db.ForeignKey('areas.id'),
+        nullable=False,
+        index=True
+    )
+
+    orden = db.Column(
+        db.Integer,
+        nullable=False
+    )
+
+    tipo_paso = db.Column(
+        db.String(30),
+        nullable=False,
+        default='OBLIGATORIO'
+    )
+
+    recorrido = db.relationship(
+        'RecorridoServicio',
+        back_populates='pasos'
+    )
+
+    area = db.relationship('Area')
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            'recorrido_id',
+            'orden',
+            name='uq_recorrido_paso_orden'
+        ),
+        db.CheckConstraint(
+            'orden > 0',
+            name='ck_recorrido_paso_orden_positivo'
         ),
     )
