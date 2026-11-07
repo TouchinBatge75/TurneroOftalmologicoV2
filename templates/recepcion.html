@@ -8,7 +8,7 @@
 <style>
 /* ================================================================
    TURNERO · MÓDULO DE RECEPCIÓN
-   Interfaz interna V4 · Sin recursos de red ni bibliotecas externas
+   Interfaz interna V5 · Sin recursos de red ni bibliotecas externas
    ================================================================ */
 :root{
   color-scheme:light;
@@ -163,6 +163,64 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
 @media(max-width:920px){.workspace{grid-template-columns:1fr}.workaside{display:grid;grid-template-columns:1fr 1fr;gap:14px}.workaside>*{margin:0}.stats{grid-template-columns:repeat(4,1fr)}.nav{border:0}.topbar{flex-wrap:wrap;min-height:96px;padding:12px 22px 0}.brand{flex:1}.nav{order:5;width:100%;overflow:auto;min-height:45px;justify-content:flex-start}.top-actions{margin-left:auto}}
 @media(max-width:720px){.container{width:calc(100% - 30px)}.topbar{padding-inline:15px}.brand{min-width:0}.brand-name{font-size:13px}.brand-mini{font-size:8px;letter-spacing:1.2px}.hero{grid-template-columns:1fr;padding:27px 0 20px}.hero-controls{justify-content:flex-start}.workspace{padding-top:18px}.stats{grid-template-columns:repeat(2,1fr)}.stat:nth-child(2){border-right:0}.stat:nth-child(-n+2){border-bottom:1px solid var(--line)}.panel-header{padding:19px 17px 15px}.queue-tools{padding:0 17px 16px}.panel-foot{padding:12px 17px}.workaside{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.form-field.span2{grid-column:span 1}.login-layout{grid-template-columns:1fr}.login-visual{padding:28px 25px;min-height:265px}.login-visual h1{font-size:40px;letter-spacing:-1px;margin:33px 0 5px}.login-visual p{font-size:11px}.login-form{padding:38px 25px}.stat{padding:17px 14px}.stat:before{left:14px}}
 @media(max-width:450px){.brandmark{width:35px;height:35px;font-size:18px}.avatar{display:none}.hero-controls .stamp{width:100%}.btn{padding:9px 12px}.on-num{font-size:36px}.nav button{padding-inline:11px}}
+/* Estadísticas V5: solo presentación, todos los valores vienen de la API. */
+.kpi-filter{display:flex;align-items:flex-end;flex-wrap:wrap;gap:12px;padding:0 25px 21px}
+.kpi-filter .form-field{flex:1;min-width:140px}
+.kpi-filter .form-field label{font-size:10px}
+.kpi-filter select,.kpi-filter input{height:40px;min-height:40px}
+.kpi-status{padding:0 25px 14px;color:var(--ink2);font-size:11px}
+.kpi-status.error{color:var(--danger)}
+.kpi-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:3px 25px 23px}
+.kpi-card{border:1px solid var(--line);border-radius:6px;padding:17px;background:var(--paper2);min-width:0}
+.kpi-card .name{font-size:10px;color:var(--ink2);text-transform:uppercase;font-weight:750;letter-spacing:.65px}
+.kpi-card .number{font-family:Georgia,serif;font-size:30px;line-height:1.3;margin:8px 0 3px;font-variant-numeric:tabular-nums}
+.kpi-card .hint{color:var(--ink3);font-size:10px}
+.kpi-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:18px;padding:0 25px 25px}
+.kpi-subpanel{border:1px solid var(--line);border-radius:6px;min-width:0;overflow:hidden}
+.kpi-subpanel h3{font-size:12px;margin:0;padding:16px;border-bottom:1px solid var(--line)}
+.kpi-trend{padding:12px 14px;max-height:400px;overflow:auto}
+.kpi-trend-row{display:grid;grid-template-columns:46px minmax(0,1fr) 26px;align-items:center;gap:9px;margin:8px 0;font-size:11px}
+.kpi-trend-row b{text-align:right;font-size:10px}
+.kpi-trend-track{background:var(--paper2);height:12px;border-radius:3px;overflow:hidden}
+.kpi-trend-fill{display:block;background:var(--accentdark);height:100%;border-radius:3px}
+.kpi-subpanel table th,.kpi-subpanel table td{padding:10px 12px;font-size:10px}
+.kpi-definition{padding:14px 25px 22px;border-top:1px solid var(--line);color:var(--ink2);font-size:10px;line-height:1.7}
+@media(max-width:1000px){.kpi-split{grid-template-columns:1fr}}
+@media(max-width:720px){.kpi-cards{grid-template-columns:repeat(2,minmax(0,1fr));padding-inline:16px}.kpi-filter,.kpi-split{padding-left:16px;padding-right:16px}.kpi-status,.kpi-definition{padding-left:16px;padding-right:16px}}
+@media(max-width:440px){.kpi-cards{grid-template-columns:1fr}}
+/* ================================================================
+   RECEPCIÓN V5 · SEGUIMIENTO DE PACIENTES (SOLO LECTURA)
+   ================================================================ */
+.follow-filter{padding:0 25px 18px;display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+.follow-filter label{flex:1;min-width:220px}
+.follow-filter select{min-width:170px}
+.follow-status{padding:0 25px 14px;color:var(--ink2);font-size:11px}
+.follow-status.error{color:var(--danger)}
+.follow-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:0 25px 20px}
+.follow-card{border:1px solid var(--line);background:var(--paper2);border-radius:6px;padding:16px}
+.follow-card b{display:block;font-family:Georgia,serif;font-size:26px;font-weight:normal}
+.follow-card small{font-size:10px;color:var(--ink2)}
+.follow-cell-muted{font-size:10px;color:var(--ink3);margin-top:3px}
+.follow-alerts{display:flex;gap:5px;flex-wrap:wrap;max-width:270px}
+.follow-pill{display:inline-flex;font-size:10px;font-weight:750;line-height:1.4;padding:4px 8px;border:1px solid var(--line);border-radius:4px;color:var(--ink2);background:var(--paper2)}
+.follow-pill.warn{color:var(--warn);background:var(--warnbg);border-color:transparent}
+.follow-pill.danger{color:var(--danger);background:var(--dangerbg);border-color:transparent}
+.follow-page{padding:15px 25px;display:flex;gap:12px;align-items:center;justify-content:flex-end;flex-wrap:wrap;border-top:1px solid var(--line)}
+.follow-page span{font-size:11px;color:var(--ink2)}
+.follow-modal{width:min(1020px,100%)}
+.follow-modal-section{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}
+.follow-modal-section h3{font-family:Georgia,serif;font-weight:normal;font-size:19px;margin:0 0 12px}
+.follow-summary{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
+.follow-service{padding:15px;border:1px solid var(--line);border-radius:6px;margin-bottom:12px}
+.follow-service-head{display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:9px}
+.follow-steps{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.follow-step{border:1px solid var(--line);padding:9px 12px;border-radius:5px;background:var(--paper2);font-size:11px}
+.follow-step.current{border-color:var(--accentdark);background:var(--accentlight)}
+.follow-step small{display:block;color:var(--ink3);font-size:10px}
+.follow-detail-table{width:100%;font-size:11px}
+.follow-detail-table td,.follow-detail-table th{padding:10px 12px}
+@media(max-width:720px){.follow-filter,.follow-cards,.follow-status{padding-left:16px;padding-right:16px}.follow-page{padding:15px 16px}.follow-cards{grid-template-columns:1fr 1fr}.follow-filter label{min-width:100%}}
+@media(max-width:440px){.follow-cards{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -176,23 +234,6 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
 <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 20h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5M14 16l4-4-4-4m4 4H9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 </svg>
-<div id="login" class="login-layout hidden">
-  <section class="login-visual">
-    <div class="brand"><span class="brandmark">TR</span><span><span class="brand-name">Turnero</span><span class="brand-mini">Recepción</span></span></div>
-    <div><h1>Recepción</h1></div>
-    <div style="font-size:11px;color:#9eaa9d">Turnero · Uso interno</div>
-  </section>
-  <section class="login-form">
-    <div class="eyebrow">Acceso de operador</div><h2>Iniciar sesión</h2>
-    <div class="sub">Introduce tu usuario y contraseña.</div>
-    <form id="loginForm">
-      <div class="form-field"><label for="loginUser">Usuario</label><input id="loginUser" class="input" autocomplete="username" required placeholder="Tu usuario"></div>
-      <div class="form-field"><label for="loginPass">Contraseña</label><input id="loginPass" class="input" type="password" autocomplete="current-password" required placeholder="••••••••"></div>
-      <button id="loginSubmit" type="submit" class="btn primary" style="width:100%;margin-top:10px">Iniciar sesión <svg width="16" height="16"><use href="#i-arrow"/></svg></button>
-      <div id="loginError" class="login-error hidden" role="alert"></div>
-    </form>
-  </section>
-</div>
 <div id="app" class="shell hidden">
   <header class="topbar">
     <div class="brand"><span class="brandmark">TR</span><span><span class="brand-name">Turnero</span><span class="brand-mini">Recepción</span></span></div>
@@ -200,6 +241,8 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
       <button data-view="operacion" class="active">Mesa operativa</button>
       <button data-view="registro">Registrar ingreso</button>
       <button data-view="atenciones">Atenciones</button>
+      <button data-view="seguimiento">Seguimiento</button>
+      <button data-view="indicadores">Indicadores y reportes</button>
       <button data-view="avisos">Comunicaciones <span id="navBadge" class="counter">0</span></button>
     </nav>
     <div class="top-actions">
@@ -252,6 +295,76 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
           </div>
         </section>
         <section id="view-atenciones" class="view"><div class="panel"><div class="panel-header"><div><h2 class="panel-title">Atenciones registradas</h2><div class="panel-kicker">Consulta de atenciones de esta sede</div></div><span class="kicker" id="attTotal">—</span></div><div class="toolbar-slim"><label class="search"><svg width="15" height="15"><use href="#i-search"/></svg><input id="attSearch" placeholder="Buscar paciente o folio" aria-label="Buscar atenciones"></label><select id="attPeriod" class="field" aria-label="Periodo de atenciones"><option value="hoy">Ingresos de hoy</option><option value="todas">Todas las fechas</option></select></div><div class="tablewrap"><table><thead><tr><th>Folio</th><th>Paciente</th><th>Llegada</th><th>Tipo</th><th>Estado</th><th></th></tr></thead><tbody id="attBody"></tbody></table></div><div class="panel-foot"><span id="attFoot">—</span><span>Vista de consulta</span></div></div></section>
+        <!-- Seguimiento V5: lectura de turnos, servicios, rutas y alertas de la sede. -->
+        <section id="view-seguimiento" class="view">
+          <div class="panel">
+            <div class="panel-header">
+              <div><h2 class="panel-title">Seguimiento de pacientes</h2>
+                <div class="panel-kicker">Ubicación y estado operativo de las atenciones de tu sede</div></div>
+              <span class="kicker">Consulta de solo lectura</span>
+            </div>
+            <form id="followFilter" class="follow-filter" role="search">
+              <label class="search"><svg width="15" height="15"><use href="#i-search"/></svg>
+                <input id="followSearch" maxlength="100" placeholder="Folio o nombre de paciente" aria-label="Buscar paciente o folio"></label>
+              <select id="followScope" class="field" aria-label="Mostrar atenciones">
+                <option value="activas">Atenciones activas</option><option value="todas">Todas las atenciones</option>
+              </select>
+              <button id="followApply" type="submit" class="btn primary">Buscar</button>
+            </form>
+            <div id="followStatus" class="follow-status" role="status" aria-live="polite">Abre esta sección para consultar las atenciones.</div>
+            <div class="follow-cards">
+              <div class="follow-card"><b id="followTotal">—</b><small>Atenciones que cumplen el filtro</small></div>
+              <div class="follow-card"><b id="followWaiting">—</b><small>En espera · página actual</small></div>
+              <div class="follow-card"><b id="followAlerts">—</b><small>Con alertas · página actual</small></div>
+            </div>
+            <div class="tablewrap">
+              <table><thead><tr>
+                <th>Atención / paciente</th><th>Área actual</th><th>Turno</th><th>Tiempo en área</th><th>Paso asignado</th><th>Alertas</th><th></th>
+              </tr></thead><tbody id="followBody"><tr><td colspan="7" class="empty">Sin consulta todavía</td></tr></tbody></table>
+            </div>
+            <div class="follow-page">
+              <span id="followPageLabel">Página —</span>
+              <button type="button" id="followPrev" class="btn small" disabled>Anterior</button>
+              <button type="button" id="followNext" class="btn small" disabled>Siguiente</button>
+            </div>
+            <p class="kpi-definition">Información operativa, actualizada cada 30 s mientras esta pestaña está abierta. La ubicación se obtiene del turno activo; el paso asignado proviene del recorrido versionado. Los tiempos se calculan desde la entrada al área. Las alertas no ejecutan acciones ni sustituyen la validación del motor.</p>
+          </div>
+        </section>
+        <!-- Indicadores V5: datos históricos y reporte CSV desde PostgreSQL. -->
+        <section id="view-indicadores" class="view">
+          <div class="panel">
+            <div class="panel-header"><div><h2 class="panel-title">Indicadores y reportes</h2><div class="panel-kicker">Actividad de pacientes registrados en tu sede</div></div><span class="kicker">Datos reales</span></div>
+            <form id="kpiFilter" class="kpi-filter">
+              <div class="form-field"><label for="kpiRange">Periodo</label>
+                <select id="kpiRange" class="input" aria-label="Periodo de indicadores">
+                  <option value="hoy">Hoy</option>
+                  <option value="7">Últimos 7 días</option>
+                  <option value="30">Últimos 30 días</option>
+                  <option value="personalizado">Personalizado</option>
+                </select></div>
+              <div class="form-field"><label for="kpiFrom">Desde</label><input id="kpiFrom" type="date" class="input" required></div>
+              <div class="form-field"><label for="kpiTo">Hasta</label><input id="kpiTo" type="date" class="input" required></div>
+              <button type="submit" id="kpiApply" class="btn primary">Consultar</button>
+              <button type="button" id="kpiCsv" class="btn">Exportar CSV</button>
+            </form>
+            <div id="kpiStatus" class="kpi-status" role="status" aria-live="polite">Selecciona un periodo para consultar estadísticas.</div>
+            <div class="kpi-cards">
+              <div class="kpi-card"><div class="name">Ingresos</div><div class="number" id="kpiIngresos">—</div><div class="hint">Atenciones creadas en el periodo</div></div>
+              <div class="kpi-card"><div class="name">Atenciones finalizadas</div><div class="number" id="kpiFinalizadas">—</div><div class="hint" id="kpiTasa">Porcentaje de cierre —</div></div>
+              <div class="kpi-card"><div class="name">Turnos generados</div><div class="number" id="kpiTurnos">—</div><div class="hint">En todas las áreas de la sede</div></div>
+              <div class="kpi-card"><div class="name">Espera promedio</div><div class="number" id="kpiEspera">—</div><div class="hint" id="kpiEsperaNota">Turnos con hora de llamado</div></div>
+              <div class="kpi-card"><div class="name">Atención promedio</div><div class="number" id="kpiAtencion">—</div><div class="hint" id="kpiAtencionNota">Turnos con inicio y fin</div></div>
+              <div class="kpi-card"><div class="name">Omisiones</div><div class="number" id="kpiOmisiones">—</div><div class="hint">Total acumulado en los turnos</div></div>
+            </div>
+            <div class="kpi-split">
+              <div class="kpi-subpanel"><h3>Ingresos por día</h3><div class="kpi-trend" id="kpiTrend"><div class="empty">Sin datos</div></div></div>
+              <div class="kpi-subpanel"><h3>Actividad por área</h3>
+                <div class="tablewrap"><table><thead><tr><th>Área</th><th>Turnos</th><th>Espera</th><th>Atención</th><th>Espera media</th></tr></thead><tbody id="kpiAreas"><tr><td colspan="5" class="empty">Sin datos</td></tr></tbody></table></div>
+              </div>
+            </div>
+            <p class="kpi-definition"><strong>Definiciones:</strong> el periodo filtra por fecha de ingreso de la atención, no por fecha de creación del turno. Espera = tiempo desde la entrada a la cola hasta la hora de llamado guardada; atención = desde el inicio hasta el fin del turno. Solo se promedian intervalos completos y válidos. Las cifras de espera y atención por área se refieren a los turnos de esas atenciones, no necesariamente a eventos ocurridos dentro del periodo. Si un turno fue llamado varias veces, se utiliza la hora de llamado actualmente guardada. No se incluyen datos clínicos ni nombres en el CSV.</p>
+          </div>
+        </section>
         <section id="view-avisos" class="view"><div class="panel"><div class="panel-header"><div><h2 class="panel-title">Centro de mensajes</h2><div class="panel-kicker">Notificaciones recibidas en las áreas autorizadas</div></div><span class="kicker" id="notisTotal">—</span></div><div class="toolbar-slim"><div class="seg" role="group"><button class="active" data-notifilter="todas">Todas</button><button data-notifilter="pendientes">Sin leer</button></div></div><div class="notification-list" id="fullNotifications"></div></div></section>
       </div>
       <aside class="workaside" aria-label="Seguimiento rápido">
@@ -264,6 +377,15 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
   <footer class="container footer"><span>Turnero · Recepción</span><span>Uso interno <span style="padding:0 8px">·</span> <span id="footerYear"></span></span></footer>
 </div>
 <div id="detailBackdrop" class="modal-backdrop hidden" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle"><div class="modal-header"><div><span class="kicker">Detalle del registro</span><h2 id="detailTitle">Turno</h2></div><button class="close" id="detailClose" aria-label="Cerrar detalle">Cerrar ×</button></div><div id="detailBody"></div></section></div>
+<div id="followBackdrop" class="modal-backdrop hidden" role="presentation">
+  <section class="modal follow-modal" role="dialog" aria-modal="true" aria-labelledby="followDetailTitle">
+    <div class="modal-header"><div><span class="kicker">Card viajera · información operativa</span>
+      <h2 id="followDetailTitle">Detalle de atención</h2></div>
+      <button class="close" id="followClose" aria-label="Cerrar seguimiento">Cerrar ×</button>
+    </div>
+    <div id="followDetailBody"><div class="empty">Consultando…</div></div>
+  </section>
+</div>
 <div id="toast" class="toast hidden" role="status"></div>
 <script>
 (() => {
@@ -395,7 +517,7 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
   }
   function navigate(target){
     state.view=target;$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===target));$$('.view').forEach(e=>e.classList.toggle('active',e.id==='view-'+target));
-    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();if(target==='registro')loadServiciosRegistro();
+    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();if(target==='registro')loadServiciosRegistro();if(target==='indicadores')loadIndicadores();if(target==='seguimiento')loadSeguimiento();
     window.scrollTo({top:0,behavior:'smooth'});
   }
   $$('[data-view]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
@@ -508,6 +630,258 @@ async function readNotification(id) {
   $$('[data-notifilter]').forEach(b=>b.addEventListener('click',()=>{state.notifilter=b.dataset.notifilter;$$('[data-notifilter]').forEach(x=>x.classList.toggle('active',x===b));renderNotifications();}));
   $('#queueSearch').addEventListener('input',renderQueue);$('#queueStatus').addEventListener('change',renderQueue);
   $('#attSearch').addEventListener('input',renderAtenciones);$('#attPeriod').addEventListener('change',renderAtenciones);
+  // ========================================================
+  // SEGUIMIENTO V5 · Solo lectura desde PostgreSQL.
+  // ========================================================
+  let followPage = 1;
+  let followTotalPages = 1;
+  let followToken = 0;
+  let followDetailToken = 0;
+
+  function followTime(minutes){
+    if(minutes == null) return '—';
+    const total=Math.max(0,Math.floor(Number(minutes)));
+    if(total<60) return `${total} min`;
+    return `${Math.floor(total/60)} h ${String(total%60).padStart(2,'0')} min`;
+  }
+  function followPills(alertas){
+    if(!alertas?.length)return '<span class="follow-cell-muted">Sin alertas</span>';
+    return alertas.map(a=>{
+      const urgente=['VARIOS_TURNOS','SIN_TURNO'].includes(a.codigo);
+      return `<span class="follow-pill ${urgente?'danger':'warn'}">${clean(a.texto)}</span>`;
+    }).join('');
+  }
+  function renderSeguimiento(data){
+    const filas=Array.isArray(data.atenciones)?data.atenciones:[];
+    followTotalPages=Number(data.total_paginas)||1;
+    followPage=Number(data.pagina)||1;
+    setText('#followTotal',data.total||0);
+    setText('#followWaiting',filas.filter(a=>a.turno_actual?.estado==='ESPERA').length);
+    setText('#followAlerts',filas.filter(a=>(a.alertas||[]).length>0).length);
+    setText('#followPageLabel',`Página ${followPage} de ${followTotalPages} · ${filas.length} visibles`);
+    $('#followPrev').disabled=followPage<=1;
+    $('#followNext').disabled=followPage>=followTotalPages;
+    $('#followBody').innerHTML=filas.length?filas.map(a=>{
+      const t=a.turno_actual;
+      return `<tr>
+        <td><span class="ticket">${clean(a.folio)}</span><div class="person">${clean(a.paciente_nombre)}</div><div class="follow-cell-muted">${clean(stateLabel(a.estado))} · Ingresó ${clean(formatTime(a.fecha_llegada))}</div></td>
+        <td><b>${clean(t?.area||'Sin turno activo')}</b><div class="follow-cell-muted">${clean(stateLabel(t?.estado))}</div></td>
+        <td class="ticket">${clean(t?.numero||'—')}</td>
+        <td>${clean(followTime(t?.minutos_en_area))}</td>
+        <td>${clean(a.paso_asignado?.area||'Sin paso asignado')}<div class="follow-cell-muted">${a.paso_asignado?`Paso ${Number(a.paso_asignado.orden)||0}`:'—'}</div></td>
+        <td><div class="follow-alerts">${followPills(a.alertas)}</div></td>
+        <td><button class="tiny-action" data-follow-id="${Number(a.id)}">Ver card</button></td>
+      </tr>`;
+    }).join(''):'<tr><td colspan="7"><div class="empty"><b>No hay atenciones para este filtro</b>Prueba buscando por otro folio o cambiando a «Todas».</div></td></tr>';
+  }
+
+  async function loadSeguimiento(){
+    if(!state.user||state.view!=='seguimiento')return;
+    const token=++followToken;
+    const mensaje=$('#followStatus');
+    mensaje.classList.remove('error');
+    if(state.demo){
+      mensaje.textContent='Seguimiento disponible únicamente con sesión real desde Flask.';
+      setText('#followTotal','—');setText('#followWaiting','—');setText('#followAlerts','—');
+      $('#followBody').innerHTML='<tr><td colspan="7" class="empty">El modo demostración no inventa movimientos de pacientes.</td></tr>';
+      return;
+    }
+    const params=new URLSearchParams({
+      estado:$('#followScope').value,
+      q:$('#followSearch').value.trim(),
+      pagina:String(followPage)
+    });
+    mensaje.textContent='Consultando ubicación y estado de los pacientes…';
+    $('#followApply').disabled=true;
+    try{
+      const datos=await api(`/api/recepcion/seguimiento?${params}`);
+      if(token!==followToken)return;
+      renderSeguimiento(datos);
+      mensaje.textContent=`Consulta actualizada ${timeFmt.format(new Date())} · Sede del operador · Espera prolongada desde ${datos.umbral_espera_min} min`;
+    }catch(err){
+      if(token!==followToken)return;
+      mensaje.classList.add('error');mensaje.textContent='No fue posible consultar seguimiento: '+err.message;
+      $('#followBody').innerHTML='<tr><td colspan="7" class="empty">No se pudo cargar el seguimiento.</td></tr>';
+      setText('#followTotal','—');setText('#followWaiting','—');setText('#followAlerts','—');
+    }finally{if(token===followToken)$('#followApply').disabled=false;}
+  }
+
+  $('#followFilter').addEventListener('submit',e=>{e.preventDefault();followPage=1;loadSeguimiento();});
+  $('#followScope').addEventListener('change',()=>{followPage=1;loadSeguimiento();});
+  $('#followPrev').addEventListener('click',()=>{if(followPage>1){followPage--;loadSeguimiento();}});
+  $('#followNext').addEventListener('click',()=>{if(followPage<followTotalPages){followPage++;loadSeguimiento();}});
+
+  const followTable=(headers,rows)=>{
+    if(!rows.length)return '<div class="sub">Sin registros.</div>';
+    return `<div class="tablewrap"><table class="follow-detail-table"><thead><tr>${headers.map(h=>`<th>${clean(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr>${row.map(cell=>`<td>${clean(cell??'—')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  };
+  function renderCardDetalle(data){
+    const a=data.atencion||{},card=data.card||{},diagnostico=data.diagnostico||{};
+    const servicios=Array.isArray(data.servicios_recorridos)?data.servicios_recorridos:[];
+    const turnos=Array.isArray(data.turnos)?data.turnos:[];
+    const solicitudes=Array.isArray(data.solicitudes)?data.solicitudes:[];
+    const historial=Array.isArray(data.historial)?data.historial:[];
+    setText('#followDetailTitle',a.folio||'Detalle de atención');
+    const estadoCard=card.turno_actual;
+    const servicioHtml=servicios.length?servicios.map(s=>{
+      const recorrido=s.recorrido;
+      const pasos=s.pasos||[];
+      return `<div class="follow-service">
+        <div class="follow-service-head"><b>${clean(s.servicio)}</b><span class="follow-pill">${clean(stateLabel(s.estado))}</span></div>
+        <div class="sub">Pago: ${s.requiere_pago?(s.pagado?'Registrado':'Pendiente'):'No requerido'} · ${recorrido?`Recorrido V${Number(recorrido.version)} (${clean(recorrido.estado_publicacion)})`:'Sin recorrido asignado'}</div>
+        <div class="follow-steps">${pasos.length?pasos.map(p=>`<div class="follow-step ${p.posicion==='ACTUAL'?'current':''}">
+          <b>${Number(p.orden)}. ${clean(p.area)}</b><small>${clean(p.posicion==='ANTERIOR'?'Paso anterior':p.posicion==='ACTUAL'?'Paso asignado actualmente':p.posicion==='POSTERIOR'?'Paso posterior':'Sin posición verificada')}</small>
+        </div>`).join(''):'<span class="sub">No hay pasos configurados para mostrar.</span>'}</div>
+      </div>`;
+    }).join(''):'<div class="sub">No hay servicios asociados.</div>';
+    const diagnosticoTexto=diagnostico.mensaje||diagnostico.decision?.mensaje||diagnostico.decision?.error||diagnostico.error||'Sin diagnóstico adicional';
+    $('#followDetailBody').innerHTML=`
+      <div class="detail-grid">
+        <div><small>Paciente</small><strong>${clean(a.nombre_paciente)}</strong></div>
+        <div><small>Estado de la atención</small><strong>${clean(stateLabel(a.estado))}</strong></div>
+        <div><small>Área actual</small><strong>${clean(estadoCard?.area||'Sin turno activo')}</strong></div>
+        <div><small>Turno actual</small><strong>${clean(estadoCard?.numero||'—')}</strong></div>
+      </div>
+      <div class="follow-summary">
+        <span class="follow-pill">Servicios pendientes: ${(card.servicios_pendientes||[]).length}</span>
+        <span class="follow-pill">Solicitudes abiertas: ${(card.solicitudes_abiertas||[]).length}</span>
+        <span class="follow-pill">Retornos pendientes: ${(card.retornos_pendientes||[]).length}</span>
+      </div>
+      <div class="callout"><b>Diagnóstico:</b> ${clean(diagnostico.accion||'SIN_DIAGNOSTICO')} · ${clean(diagnosticoTexto)}<div class="follow-cell-muted">Solo informativo. No autoriza transferencias.</div></div>
+      <section class="follow-modal-section"><h3>Servicios y recorridos asignados</h3>${servicioHtml}</section>
+      <section class="follow-modal-section"><h3>Historial de turnos (30 más recientes)</h3>${followTable(['Turno','Área','Estado','Llegada','Inicio','Salida'],turnos.map(t=>[t.numero,t.area,stateLabel(t.estado),formatTime(t.entrada),formatTime(t.inicio),formatTime(t.fin)]))}</section>
+      <section class="follow-modal-section"><h3>Solicitudes de área (30 más recientes)</h3>${followTable(['Origen','Destino','Estado','Retorno'],solicitudes.map(s=>[s.origen,s.destino,s.estado,s.estado_retorno]))}</section>
+      <section class="follow-modal-section"><h3>Eventos registrados (30 más recientes)</h3>${followTable(['Fecha','Acción','Cambio','Motivo'],historial.map(h=>[formatTime(h.fecha),h.accion,`${h.estado_anterior||'—'} → ${h.estado_nuevo||'—'}`,h.motivo]))}</section>
+      <p class="kpi-definition">Los pasos anteriores son posiciones del recorrido, no certificaciones de atención completada. El detalle es únicamente de consulta.</p>`;
+  }
+  async function abrirCardSeguimiento(id){
+    const token=++followDetailToken;
+    $('#followBackdrop').classList.remove('hidden');
+    setText('#followDetailTitle','Consultando card viajera…');
+    $('#followDetailBody').innerHTML='<div class="empty">Leyendo información de la sede…</div>';
+    $('#followClose').focus();
+    try{
+      const datos=await api(`/api/recepcion/seguimiento/${id}`);
+      if(token!==followDetailToken)return;
+      renderCardDetalle(datos);
+    }catch(err){
+      if(token!==followDetailToken)return;
+      $('#followDetailBody').innerHTML=`<div class="empty"><b>No fue posible abrir el detalle</b>${clean(err.message)}</div>`;
+    }
+  }
+  function cerrarCardSeguimiento(){followDetailToken++;$('#followBackdrop').classList.add('hidden');}
+  $('#followClose').addEventListener('click',cerrarCardSeguimiento);
+  $('#followBackdrop').addEventListener('click',e=>{if(e.target.id==='followBackdrop')cerrarCardSeguimiento();});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarCardSeguimiento();});
+  document.addEventListener('click',e=>{
+    const boton=e.target.closest('[data-follow-id]');
+    if(boton){const id=Number(boton.dataset.followId);if(Number.isInteger(id)&&id>0)abrirCardSeguimiento(id);}
+  });
+  // ========================================================
+  // INDICADORES V5 · Las métricas provienen del backend.
+  // ========================================================
+  function diaLocalMexico(fecha=new Date()){
+    const partes=new Intl.DateTimeFormat('en-US',{
+      timeZone:'America/Mexico_City',year:'numeric',month:'2-digit',day:'2-digit'
+    }).formatToParts(fecha);
+    const obj=Object.fromEntries(partes.map(p=>[p.type,p.value]));
+    return `${obj.year}-${obj.month}-${obj.day}`;
+  }
+  function fechaMenosDias(fechaIso,dias){
+    const [y,m,d]=fechaIso.split('-').map(Number);
+    return new Date(Date.UTC(y,m-1,d-dias)).toISOString().slice(0,10);
+  }
+  function aplicarPeriodoKpi(){
+    const hoy=diaLocalMexico();
+    const modo=$('#kpiRange').value;
+    if(modo==='personalizado')return;
+    $('#kpiTo').value=hoy;
+    $('#kpiFrom').value=fechaMenosDias(hoy,modo==='30'?29:modo==='7'?6:0);
+  }
+  function filtrosKpi(){
+    const desde=$('#kpiFrom').value,hasta=$('#kpiTo').value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta))throw new Error('Selecciona las dos fechas.');
+    if(desde>hasta)throw new Error('La fecha inicial no puede superar la final.');
+    if(hasta>diaLocalMexico())throw new Error('No selecciones una fecha futura.');
+    const inicio=new Date(`${desde}T00:00:00Z`),fin=new Date(`${hasta}T00:00:00Z`);
+    if((fin-inicio)/86400000>=366)throw new Error('Máximo 366 días por consulta.');
+    return new URLSearchParams({desde,hasta}).toString();
+  }
+  function formatearMinutos(valor){return valor==null?'Sin datos':`${Number(valor).toFixed(1)} min`;}
+  function limpiarIndicadores(){
+    ['#kpiIngresos','#kpiFinalizadas','#kpiTurnos','#kpiEspera','#kpiAtencion','#kpiOmisiones'].forEach(id=>setText(id,'—'));
+    setText('#kpiTasa','Porcentaje de cierre —');
+    setText('#kpiEsperaNota','Turnos con hora de llamado');
+    setText('#kpiAtencionNota','Turnos con inicio y fin');
+    $('#kpiTrend').innerHTML='<div class="empty">Sin datos</div>';
+    $('#kpiAreas').innerHTML='<tr><td colspan="5" class="empty">Sin datos</td></tr>';
+  }
+  function renderIndicadores(data){
+    const m=data.metricas||{};
+    setText('#kpiIngresos',m.ingresos);
+    setText('#kpiFinalizadas',m.finalizadas);
+    setText('#kpiTasa',`Cierre: ${m.tasa_finalizacion_pct==null?'Sin datos':m.tasa_finalizacion_pct+' %'}`);
+    setText('#kpiTurnos',m.turnos_generados);
+    setText('#kpiEspera',formatearMinutos(m.promedio_espera_min));
+    setText('#kpiAtencion',formatearMinutos(m.promedio_atencion_min));
+    setText('#kpiOmisiones',m.omisiones);
+    setText('#kpiEsperaNota',`${m.muestras_espera||0} turnos con llamado válido`);
+    setText('#kpiAtencionNota',`${m.muestras_atencion||0} turnos con duración válida`);
+    const dias=Array.isArray(data.tendencia_diaria)?data.tendencia_diaria:[];
+    const maximo=Math.max(1,...dias.map(x=>Number(x.ingresos)||0));
+    $('#kpiTrend').innerHTML=dias.length?dias.map(x=>{
+      const n=Math.max(0,Number(x.ingresos)||0),ancho=Math.round(n/maximo*100);
+      return `<div class="kpi-trend-row"><span>${clean(String(x.fecha||'').slice(5))}</span><div class="kpi-trend-track" role="img" aria-label="${n} ingresos"><span class="kpi-trend-fill" style="width:${ancho}%"></span></div><b>${n}</b></div>`;
+    }).join(''):'<div class="empty">Sin ingresos en este periodo.</div>';
+    const areas=Array.isArray(data.areas)?data.areas:[];
+    $('#kpiAreas').innerHTML=areas.length?areas.map(a=>{
+      const atendiendo=(Number(a.llamados)||0)+(Number(a.en_atencion)||0)+(Number(a.pausados)||0);
+      return `<tr><td><b>${clean(a.nombre)}</b><div class="person-sub">${clean(a.codigo)}</div></td><td>${Number(a.total_turnos)||0}</td><td>${Number(a.en_espera)||0}</td><td>${atendiendo}</td><td>${clean(formatearMinutos(a.promedio_espera_min))}</td></tr>`;
+    }).join(''):'<tr><td colspan="5" class="empty">No hay turnos para este periodo.</td></tr>';
+  }
+  let solicitudKpi=0;
+  async function loadIndicadores(){
+    if(!state.user)return;
+    const secuencia=++solicitudKpi;
+    const status=$('#kpiStatus');
+    status.classList.remove('error');
+    if(state.demo){
+      limpiarIndicadores();status.textContent='Vista demostrativa: para consultar indicadores reales, abre el Turnero desde Flask.';return;
+    }
+    let params;
+    try{params=filtrosKpi();}
+    catch(err){limpiarIndicadores();status.classList.add('error');status.textContent=err.message;return;}
+    status.textContent='Consultando indicadores de PostgreSQL...';
+    $('#kpiApply').disabled=true;
+    try{
+      const data=await api(`/api/recepcion/indicadores?${params}`);
+      if(secuencia!==solicitudKpi)return;
+      renderIndicadores(data);
+      status.textContent=`${data.sede?.nombre||'Sede'} · ${data.periodo?.desde} al ${data.periodo?.hasta} · Horario Ciudad de México`;
+    }catch(err){
+      if(secuencia!==solicitudKpi)return;
+      limpiarIndicadores();status.classList.add('error');status.textContent='No fue posible cargar estadísticas: '+err.message;
+    }finally{if(secuencia===solicitudKpi)$('#kpiApply').disabled=false;}
+  }
+  $('#kpiRange').addEventListener('change',()=>{aplicarPeriodoKpi();loadIndicadores();});
+  ['#kpiFrom','#kpiTo'].forEach(id=>$(id).addEventListener('change',()=>{$('#kpiRange').value='personalizado';}));
+  $('#kpiFilter').addEventListener('submit',e=>{e.preventDefault();loadIndicadores();});
+  $('#kpiCsv').addEventListener('click',async()=>{
+    if(state.demo){showToast('CSV no disponible en modo demostración.');return;}
+    let params;
+    try{params=filtrosKpi();}catch(err){showToast(err.message);return;}
+    const boton=$('#kpiCsv');boton.disabled=true;
+    try{
+      const respuesta=await fetch(`/api/recepcion/reporte.csv?${params}`,{credentials:'same-origin',cache:'no-store'});
+      if(!respuesta.ok){let mensaje='Error HTTP '+respuesta.status;try{const d=await respuesta.json();mensaje=d.error||mensaje;}catch{}throw new Error(mensaje);}
+      const archivo=await respuesta.blob(),url=URL.createObjectURL(archivo),a=document.createElement('a');
+      a.href=url;a.download=`turnero_recepcion_${$('#kpiFrom').value}_${$('#kpiTo').value}.csv`;
+      document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+      showToast('Reporte CSV generado.');
+    }catch(err){showToast('No se pudo descargar el reporte: '+err.message);}
+    finally{boton.disabled=false;}
+  });
+  aplicarPeriodoKpi();
   async function loadCaja(){const data=await api(`/api/caja/turnos?sede_id=${encodeURIComponent(state.user.sede_id)}`);state.caja=Array.isArray(data.turnos)?data.turnos:[];state.area=data.area||state.area;state.sede=data.sede||state.sede;}
   async function loadAtenciones(){const data=await api('/api/atenciones');state.atenciones=(Array.isArray(data)?data:(data.atenciones||[])).filter(a=>Number(a.sede_id||a.sede?.id)===Number(state.user.sede_id));}
   async function loadNotifications(){const data=await api('/api/notificaciones/mis-areas');state.notificaciones=Array.isArray(data.notificaciones)?data.notificaciones:[];}
@@ -518,18 +892,15 @@ async function readNotification(id) {
       applyUser();renderQueue();renderAtenciones();renderNotifications();
     }finally{state.busy=false;$('#refreshBtn').disabled=false;}
   }
-  $('#refreshBtn').addEventListener('click',refresh);
-  function displayApp(){$('#login').classList.add('hidden');$('#app').classList.remove('hidden');applyUser();refresh();}
-  function displayLogin(){$('#app').classList.add('hidden');$('#login').classList.remove('hidden');}
-  $('#loginForm').addEventListener('submit',async e=>{
-    e.preventDefault();$('#loginSubmit').disabled=true;$('#loginError').classList.add('hidden');
-    try{const result=await api('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({usuario:$('#loginUser').value.trim(),password:$('#loginPass').value})});state.user=result.operador;csrfToken=null;$('#loginPass').value='';displayApp();}
-    catch(err){$('#loginError').textContent=err.message;$('#loginError').classList.remove('hidden');}
-    finally{$('#loginSubmit').disabled=false;}
-  });
+  $('#refreshBtn').addEventListener('click',()=>{refresh();if(state.view==='indicadores')loadIndicadores();if(state.view==='seguimiento')loadSeguimiento();});
+  function displayApp(){
+    $('#app').classList.remove('hidden');
+    applyUser();
+    refresh();
+  }
   $('#logoutBtn').addEventListener('click',async()=>{
-    if(state.demo){showToast('Esta es una vista de ejemplo. Para usar sesión real, abre el HTML desde Flask.');return;}
-    try{await api('/auth/logout',{method:'POST'});csrfToken=null;state.user=null;displayLogin();}catch(err){showToast('No se pudo cerrar la sesión: '+err.message);}
+    if(state.demo){showToast('Vista de ejemplo: no hay sesión que cerrar.');return;}
+    try{await api('/auth/logout',{method:'POST'});csrfToken=null;state.user=null;window.location.replace('/login');}catch(err){showToast('No se pudo cerrar la sesión: '+err.message);}
   });
   $('#registerForm').addEventListener('submit',async e=>{
     e.preventDefault();const u=state.user;if(!u)return;
@@ -546,10 +917,16 @@ async function readNotification(id) {
   });
   async function boot(){
     if(state.demo){demoSetup();displayApp();return;}
-    try{const d=await api('/auth/me');state.user=d.operador;displayApp();}
-    catch{displayLogin();}
+    try{
+      const data=await api('/auth/me');
+      if(!data.operador) throw new Error('No existe una sesión activa');
+      state.user=data.operador;
+      displayApp();
+    }catch(err){
+      window.location.replace('/login');
+    }
   }
-  boot();setInterval(()=>{if(state.user&&document.visibilityState==='visible')refresh();},30000);
+  boot();setInterval(()=>{if(state.user&&document.visibilityState==='visible'){refresh();if(state.view==='indicadores')loadIndicadores();if(state.view==='seguimiento')loadSeguimiento();}},30000);
 })();
 </script>
 </body>

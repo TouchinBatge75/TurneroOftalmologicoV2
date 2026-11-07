@@ -48,11 +48,19 @@ def create_app():
     login_manager.init_app(app)
     csrf.init_app(app)
 
+  
     # =================================================
     # MODELOS
     # =================================================
 
     from app import models
+
+    # =================================================
+    # PROTECCIÓN DE RECORRIDOS
+    # =================================================
+
+    from app import proteccion_recorridos
+
 
     # =================================================
     # AUTENTICACION
@@ -103,28 +111,81 @@ def create_app():
         notificaciones.bp_notificaciones
     )
 
+    from app import recepcion_kpis
+    app.register_blueprint(
+        recepcion_kpis.bp_recepcion_kpis
+    )
+
+    # =================================================
+    # SEGUIMIENTO DE PACIENTES - RECEPCION V5
+    # =================================================
+
+    from app import seguimiento_recepcion
+
+    app.register_blueprint(
+        seguimiento_recepcion.bp_seguimiento_recepcion
+    )
+
     from app.admin_operador_areas import bp_admin_operador_areas
     app.register_blueprint(bp_admin_operador_areas)
 
     # =================================================
     # INTERFACES V2
     # =================================================
+    from app.permisos import verificar_permiso, verificar_area
+
+    def operador_puede_recepcion():
+        return (
+            current_user.is_authenticated
+            and current_user.is_active
+            and bool(current_user.activo)
+            and current_user.sede_id is not None
+            and verificar_permiso('recepcion_ver')
+            and verificar_area(current_user, current_user.sede_id, 'CAJA')
+        )
 
     @app.route('/')
     def home():
-
         if not current_user.is_authenticated:
             return redirect(url_for('login_page'))
-
-        return redirect(url_for('recepcion'))
+        return redirect(url_for('mi_panel'))
 
     @app.route('/login')
     def login_page():
+        if current_user.is_authenticated:
+            return redirect(url_for('mi_panel'))
         return render_template('login.html')
+
+    @app.route('/mi-panel')
+    def mi_panel():
+        if not current_user.is_authenticated:
+            return redirect(url_for('login_page'))
+        if operador_puede_recepcion():
+            return redirect(url_for('recepcion'))
+        # Aun no existen las interfaces de medicos, areas ni administracion.
+        # No permitir acceso a Recepcion como solucion provisional.
+        return (
+            '<!doctype html><html lang="es"><meta charset="utf-8">'
+            '<title>Turnero | Sin panel</title>'
+            '<body style="font-family:system-ui;margin:10vh auto;max-width:540px;padding:20px">'
+            '<h1>Tu panel aún no está disponible</h1>'
+            '<p>Tu sesión está activa, pero todavía no existe una pantalla operativa '
+            'habilitada para tus permisos y área.</p>'
+            '<p>Comunícate con Administración.</p>'
+            '</body></html>', 200
+        )
 
     @app.route('/recepcion')
     def recepcion():
+        if not current_user.is_authenticated:
+            return redirect(url_for('login_page'))
+        if not operador_puede_recepcion():
+            return jsonify({
+                'success': False,
+                'error': 'No tiene acceso a Recepción / Caja'
+            }), 403
         return render_template('recepcion.html')
+
 
     # =================================================
     # INTERFACES V1 DESHABILITADAS TEMPORALMENTE

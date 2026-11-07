@@ -1,6 +1,8 @@
 from app import db
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from app.models import AtencionServicio
+from app.proteccion_recorridos import autorizar_publicacion_recorridos
+
 
 
 from app.models import (
@@ -130,33 +132,45 @@ def validar_recorrido_servicio(recorrido_id):
     }
 
 
+
 def activar_recorrido_servicio(recorrido_id):
     """
-    Publica un recorrido BORRADOR y archiva la
-    versión anteriormente publicada.
+    Publica un recorrido BORRADOR y archiva
+    la version anteriormente publicada.
 
-    La operación es transaccional.
+    Orden de bloqueos:
+    1. ServicioSede
+    2. RecorridoServicio
+
+    La operacion es transaccional.
     """
 
     try:
-        recorrido = db.session.get(
+        # ============================================
+        # 1. OBTENER REFERENCIA
+        # ============================================
+
+        referencia = db.session.get(
             RecorridoServicio,
             recorrido_id
         )
 
-        if recorrido is None:
+        if referencia is None:
+            db.session.rollback()
             return {
                 "success": False,
                 "error": "Recorrido no encontrado"
             }
 
-        # Bloquear la configuración sede-servicio para
-        # serializar publicaciones de la misma pareja.
+        # ============================================
+        # 2. BLOQUEAR SEDE-SERVICIO
+        # ============================================
+
         configuracion = (
             ServicioSede.query
             .filter_by(
-                sede_id=recorrido.sede_id,
-                servicio_id=recorrido.servicio_id
+                sede_id=referencia.sede_id,
+                servicio_id=referencia.servicio_id
             )
             .with_for_update()
             .first()
@@ -166,18 +180,45 @@ def activar_recorrido_servicio(recorrido_id):
             db.session.rollback()
             return {
                 "success": False,
-                "error": "Configuración del servicio no encontrada"
+                "error": "Configuracion del servicio no encontrada"
             }
 
-        # Refrescar el recorrido tras adquirir el bloqueo.
-        db.session.refresh(recorrido)
+        # ============================================
+        # 3. BLOQUEAR Y REFRESCAR RECORRIDO
+        # ============================================
 
-        if recorrido.estado_publicacion != "BORRADOR":
+        recorrido = (
+            RecorridoServicio.query
+            .filter_by(id=recorrido_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+
+        if recorrido is None:
             db.session.rollback()
             return {
                 "success": False,
-                "error": "Solo se pueden publicar borradores"
+                "error": "Recorrido no disponible"
             }
+
+        # ============================================
+        # 4. VERIFICAR ESTADO
+        # ============================================
+
+        if (
+            recorrido.estado_publicacion != "BORRADOR"
+            or recorrido.activo is not False
+        ):
+            db.session.rollback()
+            return {
+                "success": False,
+                "error": "Solo se pueden publicar borradores inactivos"
+            }
+
+        # ============================================
+        # 5. VALIDAR RECORRIDO
+        # ============================================
 
         validacion = validar_recorrido_servicio(
             recorrido.id
@@ -187,30 +228,41 @@ def activar_recorrido_servicio(recorrido_id):
             db.session.rollback()
             return validacion
 
-        # Archivar cualquier versión publicada actualmente.
-        anteriores = (
-            RecorridoServicio.query
-            .filter(
-                RecorridoServicio.sede_id == recorrido.sede_id,
-                RecorridoServicio.servicio_id == recorrido.servicio_id,
-                RecorridoServicio.activo.is_(True)
+        # ============================================
+        # 6. PUBLICAR CON AUTORIZACION TEMPORAL
+        # ============================================
+
+        session = db.session()
+
+        with autorizar_publicacion_recorridos(session):
+
+            anteriores = (
+                RecorridoServicio.query
+                .filter(
+                    RecorridoServicio.sede_id == recorrido.sede_id,
+                    RecorridoServicio.servicio_id == recorrido.servicio_id,
+                    RecorridoServicio.activo.is_(True)
+                )
+                .all()
             )
-            .all()
-        )
 
-        for anterior in anteriores:
-            if anterior.id != recorrido.id:
-                anterior.activo = False
-                anterior.estado_publicacion = "ARCHIVADO"
+            for anterior in anteriores:
+                if anterior.id != recorrido.id:
+                    anterior.activo = False
+                    anterior.estado_publicacion = "ARCHIVADO"
 
-        # Liberar el índice único parcial antes
-        # de activar la versión nueva.
-        db.session.flush()
+            # Archivar primero para respetar
+            # el indice unico de recorridos activos.
+            session.flush()
 
-        recorrido.estado_publicacion = "PUBLICADO"
-        recorrido.activo = True
+            recorrido.estado_publicacion = "PUBLICADO"
+            recorrido.activo = True
 
-        db.session.commit()
+            session.commit()
+
+        # ============================================
+        # 7. RESPUESTA EXITOSA
+        # ============================================
 
         return {
             "success": True,
@@ -221,7 +273,8 @@ def activar_recorrido_servicio(recorrido_id):
             "activo": recorrido.activo
         }
 
-    except SQLAlchemyError as error:
+    except (SQLAlchemyError, ValueError) as error:
+
         db.session.rollback()
 
         return {
@@ -229,6 +282,7 @@ def activar_recorrido_servicio(recorrido_id):
             "error": "No se pudo publicar el recorrido",
             "detalle": str(error)
         }
+
 
     
 
@@ -572,6 +626,56 @@ def verificar_edicion_recorrido(recorrido_id):
 
 
 
+# =====================================================
+# BLOQUEO COORDINADO DE RECORRIDOS
+# =====================================================
+
+def bloquear_recorrido_para_edicion(recorrido_id):
+    """
+    Bloquea la configuración sede-servicio y
+    después el recorrido, siempre en ese orden.
+
+    No modifica datos.
+    No realiza commit.
+
+    Debe ejecutarse dentro de la transacción
+    de la operación que lo utiliza.
+    """
+
+    # 1. Consultar la identidad del recorrido.
+    referencia = db.session.get(
+        RecorridoServicio,
+        recorrido_id
+    )
+
+    if referencia is None:
+        return None
+
+    # 2. Bloquear la configuración sede-servicio.
+    configuracion = (
+        ServicioSede.query
+        .filter_by(
+            sede_id=referencia.sede_id,
+            servicio_id=referencia.servicio_id
+        )
+        .with_for_update()
+        .first()
+    )
+
+    if configuracion is None:
+        return None
+
+    # 3. Bloquear y refrescar el recorrido.
+    recorrido = (
+        RecorridoServicio.query
+        .filter_by(id=recorrido_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+
+    return recorrido
+
 def editar_paso_recorrido(
     recorrido_id,
     paso_id,
@@ -586,11 +690,8 @@ def editar_paso_recorrido(
 
     try:
         # 1. Bloquear el recorrido durante la edición.
-        recorrido = (
-            RecorridoServicio.query
-            .filter_by(id=recorrido_id)
-            .with_for_update()
-            .first()
+        recorrido = bloquear_recorrido_para_edicion(
+            recorrido_id
         )
 
         if recorrido is None:
