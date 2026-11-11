@@ -221,6 +221,13 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
 .follow-detail-table td,.follow-detail-table th{padding:10px 12px}
 @media(max-width:720px){.follow-filter,.follow-cards,.follow-status{padding-left:16px;padding-right:16px}.follow-page{padding:15px 16px}.follow-cards{grid-template-columns:1fr 1fr}.follow-filter label{min-width:100%}}
 @media(max-width:440px){.follow-cards{grid-template-columns:1fr}}
+
+/* RECEPCION_OPERACION_V6 */
+.queue-actions{display:flex;flex-wrap:wrap;gap:6px;min-width:215px}
+.queue-actions .tiny-action{padding:6px 9px}
+.queue-actions .next-action{background:var(--accentlight);border-color:var(--accent);color:var(--accentdark)}
+.queue-actions button:disabled{opacity:.5}
+.avance-help{font-size:11px;color:var(--ink2);margin:10px 0 14px;line-height:1.7}
 </style>
 </head>
 <body>
@@ -288,6 +295,14 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
                   <option value="" disabled>Cargando servicios disponibles...</option>
                 </select>
                 <div class="sub" id="serviciosAyuda" style="margin-top:6px">Selecciona uno o varios servicios (Ctrl + clic para elegir varios).</div>
+              </div>
+              <!-- RECEPCION_MEDICOS_V1: selector de médico en ingreso -->
+              <div class="form-field span2">
+                <label for="fDoctor">Médico solicitado para Consulta Médica</label>
+                <select class="input" id="fDoctor" aria-describedby="doctorAyuda" disabled>
+                  <option value="">Cargando médicos de la sede…</option>
+                </select>
+                <div class="sub" id="doctorAyuda" style="margin-top:6px">Selecciona al médico para servicios de Consulta Médica. No cambia el destino inicial ni omite Caja.</div>
               </div>
               <div class="form-field span2"><label for="fObservaciones">Observaciones (opcional)</label><textarea class="input" id="fObservaciones" maxlength="1000" placeholder="Información operativa relevante..."></textarea></div>
             </div><div class="form-actions"><span class="sub" style="margin-right:auto">* Campos obligatorios · Sede: <b id="formSede">—</b></span><button type="reset" class="btn">Limpiar</button><button type="submit" id="registerSubmit" class="btn primary"><svg width="16" height="16"><use href="#i-plus"/></svg> Registrar ingreso</button></div></form><div id="registerResult" class="callout hidden" role="status" style="margin-top:18px"></div>
@@ -384,6 +399,29 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
       <button class="close" id="followClose" aria-label="Cerrar seguimiento">Cerrar ×</button>
     </div>
     <div id="followDetailBody"><div class="empty">Consultando…</div></div>
+  </section>
+</div>
+
+<!-- RECEPCION_OPERACION_V6: acciones sujetas a permisos y al motor de recorridos -->
+<div id="avanceBackdrop" class="modal-backdrop hidden" role="presentation">
+  <section class="modal" role="dialog" aria-modal="true" aria-labelledby="avanceTitle">
+    <div class="modal-header">
+      <div><span class="kicker">Caja · Motor de recorridos</span><h2 id="avanceTitle">Continuar recorrido</h2></div>
+      <button type="button" class="close" id="avanceClose">Cerrar ×</button>
+    </div>
+    <div class="avance-help" id="avanceInfo">Consultando opciones...</div>
+    <div class="form-field">
+      <label for="avanceOpcion">Paso autorizado</label>
+      <select class="input" id="avanceOpcion" disabled><option value="">Consultando...</option></select>
+    </div>
+    <label class="avance-help" style="display:flex;gap:9px;align-items:flex-start">
+      <input id="avanceRequisito" type="checkbox" style="margin-top:4px">
+      Confirmo que he verificado los requisitos necesarios de esta solicitud antes de avanzar.
+    </label>
+    <div class="form-actions">
+      <button type="button" class="btn" id="avanceCancel">Cancelar</button>
+      <button type="button" class="btn primary" id="avanceConfirm" disabled>Confirmar avance</button>
+    </div>
   </section>
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
@@ -502,6 +540,7 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
       for(const servicio of disponibles){
         const option=document.createElement('option');
         option.value=String(servicio.servicio_id);
+        option.dataset.area=String(servicio.area||'');
         option.textContent=`${servicio.servicio} — ${servicio.area||'Área por definir'}`;
         select.appendChild(option);
       }
@@ -515,9 +554,47 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
       showToast('Error al cargar servicios: '+err.message);
     }
   }
+  // RECEPCION_MEDICOS_V1: los médicos vienen de la sede autenticada.
+  async function loadDoctoresRegistro(){
+    const select=$('#fDoctor');
+    select.disabled=true;
+    select.replaceChildren();
+    select.add(new Option('Cargando médicos de esta sede…',''));
+    try{
+      const data=state.demo?{doctores:[{
+        id:1,nombre:'Dr. Prueba Retorno',especialidad:'Oftalmología',
+        consultorios:[{codigo:'CONS-PRUEBA-01'}]
+      }]}:await api('/api/recepcion/doctores');
+      const doctores=Array.isArray(data.doctores)?data.doctores:[];
+      select.replaceChildren();
+      select.add(new Option('Sin médico asignado / No aplica',''));
+      for(const medico of doctores){
+        const consultorios=(medico.consultorios||[]).map(c=>c.codigo).filter(Boolean).join(', ');
+        const descripcion=[medico.nombre,medico.especialidad,consultorios].filter(Boolean).join(' · ');
+        select.add(new Option(descripcion,String(medico.id)));
+      }
+      select.disabled=doctores.length===0;
+      $('#doctorAyuda').textContent=doctores.length
+        ? 'Para una consulta médica, elige el médico que atenderá. No cambia el destino inicial ni omite Caja.'
+        : 'No hay médicos activos con consultorio asignado en esta sede.';
+    }catch(err){
+      select.replaceChildren();
+      select.add(new Option('No fue posible consultar médicos',''));
+      $('#doctorAyuda').textContent='Error al cargar médicos: '+err.message;
+      showToast('No se pudieron cargar los médicos: '+err.message);
+    }
+  }
+
+  function servicioMedicoSeleccionado(){
+    return [...$('#fServicios').selectedOptions].some(option=>{
+      const area=String(option.dataset.area||'')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+      return area.includes('CONSULTA')||area.includes('CONSULTORIO')||area.includes('MEDICINA');
+    });
+  }
   function navigate(target){
     state.view=target;$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===target));$$('.view').forEach(e=>e.classList.toggle('active',e.id==='view-'+target));
-    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();if(target==='registro')loadServiciosRegistro();if(target==='indicadores')loadIndicadores();if(target==='seguimiento')loadSeguimiento();
+    if(target==='atenciones')renderAtenciones();if(target==='avisos')renderNotifications();if(target==='registro'){loadServiciosRegistro();loadDoctoresRegistro();}if(target==='indicadores')loadIndicadores();if(target==='seguimiento')loadSeguimiento();
     window.scrollTo({top:0,behavior:'smooth'});
   }
   $$('[data-view]').forEach(b=>b.addEventListener('click',()=>navigate(b.dataset.view)));
@@ -529,7 +606,12 @@ tbody tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--paper2)}
     const arr=sortedQueue();setText('#queueTotal',`${arr.length} turnos`);setText('#queueFoot',`Mostrando ${arr.length} de ${state.caja.length} turnos registrados en Caja`);
     const b=$('#queueBody');
     if(!arr.length){b.innerHTML='<tr><td colspan="6"><div class="empty"><b>Sin turnos para este filtro</b>Prueba con otra fecha o consulta el historial.</div></td></tr>';}
-    else b.innerHTML=arr.map(t=>`<tr><td><span class="ticket">${clean(t.numero_turno||t.numero)}</span><div class="person-sub">#${clean(t.id)}</div></td><td><div class="person">${clean(t.paciente?.nombre_completo||t.atencion?.nombre_paciente)}</div><div class="person-sub">${clean(t.atencion?.folio)}</div></td><td><span class="status ${stateClass(t.estado)}">${clean(stateLabel(t.estado))}</span></td><td><span class="service-chip" title="${clean((t.servicios||[]).map(s=>s.nombre).join(', '))}">${clean((t.servicios||[]).map(s=>s.nombre).join(', ')||'Sin servicios asociados')}</span></td><td style="white-space:nowrap">${clean(formatTime(t.fecha_entrada_cola))}</td><td><button class="tiny-action" data-detail-turno="${Number(t.id)}">Detalles</button></td></tr>`).join('');
+    else b.innerHTML=arr.map(t=>`<tr><td><span class="ticket">${clean(t.numero_turno||t.numero)}</span><div class="person-sub">#${clean(t.id)}</div></td><td><div class="person">${clean(t.paciente?.nombre_completo||t.atencion?.nombre_paciente)}</div><div class="person-sub">${clean(t.atencion?.folio)}</div></td><td><span class="status ${stateClass(t.estado)}">${clean(stateLabel(t.estado))}</span></td><td><span class="service-chip" title="${clean((t.servicios||[]).map(s=>s.nombre).join(', '))}">${clean((t.servicios||[]).map(s=>s.nombre).join(', ')||'Sin servicios asociados')}</span></td><td style="white-space:nowrap">${clean(formatTime(t.fecha_entrada_cola))}</td><td><div class="queue-actions">
+          ${t.estado==='ESPERA'?`<button class="tiny-action" data-caja-accion="llamar" data-id="${Number(t.id)}">Llamar</button>`:''}
+          ${t.estado==='LLAMADO'?`<button class="tiny-action" data-caja-accion="iniciar" data-id="${Number(t.id)}">Iniciar</button>`:''}
+          ${t.estado==='EN_ATENCION'?`<button class="tiny-action next-action" data-caja-accion="avanzar" data-id="${Number(t.id)}">Continuar recorrido</button>`:''}
+          <button class="tiny-action" data-detail-turno="${Number(t.id)}">Detalles</button>
+        </div></td></tr>`).join('');
     const todayQueue=state.caja.filter(t=>isToday(t.fecha_entrada_cola));
     setText('#statWait',todayQueue.filter(t=>t.estado==='ESPERA').length);
     setText('#statProcess',todayQueue.filter(t=>['LLAMADO','EN_ATENCION'].includes(t.estado)).length);
@@ -892,6 +974,100 @@ async function readNotification(id) {
       applyUser();renderQueue();renderAtenciones();renderNotifications();
     }finally{state.busy=false;$('#refreshBtn').disabled=false;}
   }
+
+  // RECEPCION_OPERACION_V6: no calcula ni inventa destinos en el navegador.
+  let avanceTurnoId=null;
+  let avanceOpciones=[];
+  let accionCajaOcupada=false;
+  function cerrarAvance(){
+    avanceTurnoId=null;avanceOpciones=[];
+    $('#avanceBackdrop').classList.add('hidden');
+    $('#avanceOpcion').replaceChildren();
+    $('#avanceConfirm').disabled=true;
+  }
+  $('#avanceClose').addEventListener('click',cerrarAvance);
+  $('#avanceCancel').addEventListener('click',cerrarAvance);
+  $('#avanceBackdrop').addEventListener('click',e=>{
+    if(e.target.id==='avanceBackdrop')cerrarAvance();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')cerrarAvance();});
+  $('#avanceOpcion').addEventListener('change',()=>{
+    $('#avanceConfirm').disabled= $('#avanceOpcion').value==='' || !avanceOpciones[Number($('#avanceOpcion').value)];
+  });
+
+  async function abrirAvance(turno){
+    if(state.demo){showToast('Operaciones no disponibles en demostración.');return;}
+    $('#avanceRequisito').checked=false;
+    avanceTurnoId=Number(turno.id);
+    avanceOpciones=[];
+    $('#avanceBackdrop').classList.remove('hidden');
+    setText('#avanceTitle',`Continuar · ${turno.numero_turno}`);
+    setText('#avanceInfo','Buscando próximos pasos autorizados...');
+    $('#avanceOpcion').disabled=true;
+    $('#avanceConfirm').disabled=true;
+    try{
+      const data=await api(`/api/recepcion/turnos/${avanceTurnoId}/opciones-avance`);
+      if(avanceTurnoId!==Number(turno.id))return;
+      avanceOpciones=Array.isArray(data.opciones)?data.opciones:[];
+      const lista=$('#avanceOpcion');lista.replaceChildren();
+      const placeholder=document.createElement('option');
+      placeholder.value='';placeholder.textContent='Seleccionar siguiente paso';
+      lista.appendChild(placeholder);
+      avanceOpciones.forEach((o,i)=>{
+        const opt=document.createElement('option');opt.value=String(i);
+        opt.textContent=o.etiqueta;lista.appendChild(opt);
+      });
+      lista.value='';lista.disabled=avanceOpciones.length===0;
+      setText('#avanceInfo',data.mensaje||'Selecciona la acción correspondiente al recorrido.');
+    }catch(err){setText('#avanceInfo',err.message);}
+  }
+
+  $('#avanceConfirm').addEventListener('click',async()=>{
+    if(accionCajaOcupada||avanceTurnoId==null)return;
+    const opcion=avanceOpciones[Number($('#avanceOpcion').value)];
+    if(!opcion)return;
+    if(opcion.tipo==='SOLICITUD' && !$('#avanceRequisito').checked){showToast('Debes comprobar y confirmar los requisitos de la solicitud.');return;}
+    const turnoId=avanceTurnoId;
+    if(!confirm(`¿Confirmar el avance del turno a ${opcion.destino}?\n\nVerifica antes que los pagos y requisitos estén realmente cumplidos.`))return;
+    const ruta=opcion.tipo==='SOLICITUD'
+      ? `/api/solicitudes-area/${opcion.id}/avanzar`
+      : `/api/turnos/${turnoId}/transicionar`;
+    const cuerpo=opcion.tipo==='SOLICITUD'
+      ? {requisito_confirmado:$('#avanceRequisito').checked}
+      : {evento:opcion.evento,motivo:'Continuidad del recorrido desde Recepción/Caja'};
+    accionCajaOcupada=true;$('#avanceConfirm').disabled=true;
+    try{
+      const resultado=await api(ruta,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cuerpo)});
+      cerrarAvance();
+      showToast(resultado.message||'Avance registrado.');
+      await refresh();
+      if(state.view==='seguimiento')await loadSeguimiento();
+    }catch(err){showToast('No se pudo avanzar: '+err.message);}
+    finally{accionCajaOcupada=false;}
+  });
+
+  document.addEventListener('click',async e=>{
+    const boton=e.target.closest('[data-caja-accion]');
+    if(!boton||accionCajaOcupada)return;
+    const turno=state.caja.find(t=>Number(t.id)===Number(boton.dataset.id));
+    if(!turno)return;
+    if(boton.dataset.cajaAccion==='avanzar')return abrirAvance(turno);
+    if(state.demo){showToast('Operaciones no disponibles en demostración.');return;}
+    const accion=boton.dataset.cajaAccion;
+    if(!['llamar','iniciar'].includes(accion))return;
+    if(!confirm(`¿${accion==='llamar'?'Llamar':'Iniciar atención del'} turno ${turno.numero_turno}?`))return;
+    accionCajaOcupada=true;boton.disabled=true;
+    try{
+      const r=await api(`/api/turnos/${turno.id}/${accion}`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({motivo:'Operación desde Recepción/Caja'})
+      });
+      showToast(r.message||'Turno actualizado.');
+      await refresh();
+    }catch(err){showToast(`No se pudo ${accion}: ${err.message}`);}
+    finally{accionCajaOcupada=false;boton.disabled=false;}
+  });
+
   $('#refreshBtn').addEventListener('click',()=>{refresh();if(state.view==='indicadores')loadIndicadores();if(state.view==='seguimiento')loadSeguimiento();});
   function displayApp(){
     $('#app').classList.remove('hidden');
@@ -907,6 +1083,12 @@ async function readNotification(id) {
     const payload={sede_id:u.sede_id,nombre:$('#fNombre').value.trim(),apellido_paterno:$('#fPaterno').value.trim(),apellido_materno:$('#fMaterno').value.trim(),tipo_llegada:'SIN_CITA',afiliado:$('#fAfiliado').value==='true',servicios_ids:[...$('#fServicios').selectedOptions].map(option=>Number(option.value)),observaciones:$('#fObservaciones').value.trim(),usuario:u.usuario};
     if(!payload.nombre||!payload.apellido_paterno){showToast('Escribe el nombre y apellido paterno.');return;}
     if(payload.servicios_ids.length===0){showToast('Selecciona al menos un servicio para registrar la atención.');return;}
+    const doctorId=Number($('#fDoctor').value)||null;
+    if(servicioMedicoSeleccionado()&&!doctorId){
+      showToast('Selecciona un médico para el servicio de Consulta Médica.');
+      $('#fDoctor').focus();return;
+    }
+    if(doctorId)payload.doctor_id=doctorId;
     if(!state.demo&&!confirm('¿Registrar esta atención en la base de datos de Turnero?'))return;
     const btn=$('#registerSubmit');btn.disabled=true;
     try{

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turnero | Roles y permisos</title>
+<style>
+:root{color-scheme:light;--navy:#162a46;--gold:#cba34e;--bg:#f3f6fa;--card:#fff;--ink:#19283c;--muted:#67788f;--line:#dde4ed;--danger:#a52e38;--ok:#17684d}
+*{box-sizing:border-box}body{font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink);margin:0}
+header{background:var(--navy);color:#fff;padding:22px max(22px,calc((100vw - 1220px)/2));display:flex;align-items:center;justify-content:space-between;gap:16px}
+header h1{font-size:22px;margin:0}header p{margin:3px 0 0;color:#d4e2ee}main{max-width:1220px;margin:24px auto;padding:0 18px 50px}
+button,a.btn{background:var(--navy);border:1px solid var(--navy);color:#fff;cursor:pointer;padding:10px 14px;border-radius:8px;font:inherit;text-decoration:none}
+button:hover{filter:brightness(1.13)}button:disabled{opacity:.45;cursor:not-allowed}button.light{background:#fff;border-color:var(--line);color:var(--navy)}button.gold{background:var(--gold);border-color:var(--gold);color:#19283c;font-weight:650}
+header .actions{display:flex;gap:9px;flex-wrap:wrap}.panel{background:var(--card);border:1px solid var(--line);box-shadow:0 5px 18px #17253a0a;border-radius:13px;padding:20px}
+.layout{display:grid;grid-template-columns:310px minmax(0,1fr);gap:18px}.stack{display:grid;gap:18px}.row{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.between{justify-content:space-between}
+h2{font-size:17px;margin:0 0 15px}h3{font-size:15px;margin:0 0 10px}p{margin:6px 0 15px}.muted{color:var(--muted)}.small{font-size:12px}
+input,textarea,select{width:100%;border:1px solid #bfcddd;border-radius:7px;padding:10px;background:#fff;color:var(--ink);font:inherit}textarea{resize:vertical;min-height:65px}label{font-weight:600;display:block;margin:10px 0 5px}label.inline{display:flex;align-items:center;gap:10px;margin:0;font-weight:normal}label.inline input{width:auto}
+.role-list{display:grid;gap:8px}.role-item{display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left;width:100%;border:1px solid var(--line);background:#fff;color:var(--ink)}.role-item.selected{border-color:var(--gold);background:#fffaef}.pill{font-size:11px;border-radius:20px;padding:3px 7px;background:#e6f5ec;color:var(--ok);white-space:nowrap}.pill.off{background:#fce9e8;color:var(--danger)}
+.perms{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:9px;margin:12px 0}.perm{border:1px solid var(--line);border-radius:9px;padding:11px;display:flex;align-items:flex-start;gap:10px;min-height:64px}.perm input{width:18px;height:18px;flex-shrink:0;margin:2px 0}.perm .code{font-family:ui-monospace,Consolas,monospace;font-size:11px;display:block;color:var(--muted);word-break:break-word}.perm strong{display:block;font-size:13px}
+.notice{border-left:4px solid var(--gold);background:#fffbf0;border-radius:5px;padding:12px 14px;margin-bottom:16px}.notice.danger{border-color:var(--danger);background:#fff0f0}.notice.ok{border-color:var(--ok);background:#e8f8ef}#status:empty{display:none}
+hr{border:0;border-top:1px solid var(--line);margin:19px 0}.hidden{display:none!important}.loading{opacity:.6;pointer-events:none}
+@media(max-width:780px){.layout{grid-template-columns:1fr}header{padding:16px 18px;align-items:flex-start;flex-wrap:wrap}.perms{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Administración · Roles y permisos</h1><p>Turnero Oftalmológico V2 · Control de acceso</p></div>
+  <div class="actions"><a class="btn" href="/mi-panel">Mi panel</a><button type="button" class="light" id="salir">Cerrar sesión</button></div>
+</header>
+<main>
+  <div id="status" role="status" aria-live="polite"></div>
+  <div class="notice">Los roles definen los permisos generales. Las asignaciones por sede y área se mantienen en <strong>operador_areas</strong>, y los permisos individuales prevalecen según las reglas actuales del Turnero. El código de un rol no se puede renombrar.</div>
+  <div class="layout">
+    <div class="stack">
+      <section class="panel">
+        <div class="row between"><h2>Roles existentes</h2><button id="refrescar" class="light" type="button">Actualizar</button></div>
+        <div id="roles" class="role-list"></div>
+      </section>
+      <section class="panel">
+        <h2>Crear rol</h2>
+        <form id="crear-form">
+          <label for="nuevo-codigo">Código</label><input id="nuevo-codigo" maxlength="30" required placeholder="EJ. OPTOMETRISTA" pattern="[A-Za-z][A-Za-z0-9_]{1,29}">
+          <label for="nuevo-nombre">Nombre</label><input id="nuevo-nombre" required maxlength="100" placeholder="Optometrista">
+          <label for="nueva-desc">Descripción</label><textarea id="nueva-desc" maxlength="2000"></textarea>
+          <button class="gold" type="submit">Crear rol</button>
+        </form>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="panel">
+        <h2>Configuración del rol <span class="muted" id="seleccion-titulo"></span></h2>
+        <div id="sin-rol" class="muted">Selecciona un rol en la columna izquierda.</div>
+        <form id="editar-form" class="hidden">
+          <div class="row"><span id="codigo-actual" class="pill"></span><span id="conteo-operadores" class="muted small"></span></div>
+          <label for="editar-nombre">Nombre visible</label><input id="editar-nombre" maxlength="100" required>
+          <label for="editar-descripcion">Descripción</label><textarea id="editar-descripcion" maxlength="2000"></textarea>
+          <label class="inline" style="margin:14px 0"><input id="editar-activo" type="checkbox"> Rol activo</label>
+          <button type="submit">Guardar datos del rol</button>
+          <span class="muted small">ADMIN no se puede desactivar. No es posible desactivar roles con operadores activos.</span>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="row between"><h2>Permisos del rol</h2><input id="buscar-permiso" type="search" placeholder="Filtrar permisos" aria-label="Buscar permisos" style="max-width:250px"></div>
+        <div class="muted small">Selecciona los permisos autorizados; los cambios se guardan juntos al pulsar Guardar permisos.</div>
+        <div id="permisos" class="perms"></div>
+        <button id="guardar-permisos" type="button" disabled>Guardar permisos seleccionados</button>
+      </section>
+      <section class="panel">
+        <h2>Asignar rol a un operador</h2>
+        <p class="muted">Esto no modifica su sede ni sus áreas. No permite cambiar tu propio rol ni quitar el último ADMIN activo.</p>
+        <form id="asignar-form" class="row">
+          <div style="flex:2 1 240px"><label for="operador-select">Operador</label><select id="operador-select" required></select></div>
+          <div style="flex:1 1 180px"><label for="rol-select">Nuevo rol</label><select id="rol-select" required></select></div>
+          <button style="align-self:end" type="submit">Asignar rol</button>
+        </form>
+      </section>
+    </div>
+  </div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const state = { roles: [], permisos: [], operadores: [], selected: null, token: null };
+  const permisosPendientes = new Map();
+  const esc = value => String(value ?? '');
+
+  function aviso(mensaje, tipo = '') {
+    const s = $('status'); s.textContent = mensaje; s.className = `notice ${tipo}`;
+    if (s.scrollIntoView && tipo === 'danger') s.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+  async function csrfToken() {
+    const r = await fetch('/csrf-token', {credentials: 'same-origin'});
+    const d = await r.json(); if (!r.ok || !d.csrf_token) throw new Error('No se pudo obtener token CSRF');
+    state.token = d.csrf_token;
+  }
+  async function api(url, method='GET', body) {
+    const headers = {'Accept':'application/json'};
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (method !== 'GET') headers['X-CSRFToken'] = state.token;
+    const r = await fetch(url, {method, credentials:'same-origin', headers, body: body===undefined ? undefined : JSON.stringify(body)});
+    let d; try { d = await r.json(); } catch { throw new Error('Respuesta no válida del servidor (HTTP '+r.status+')'); }
+    if (!r.ok || !d.success) throw new Error(d.error || 'Error HTTP '+r.status);
+    return d;
+  }
+  function option(select, value, label) {const o = document.createElement('option');o.value=esc(value);o.textContent=esc(label);select.append(o);}
+  function seleccionado() {return state.roles.find(r=>r.id===state.selected) || null;}
+
+  function dibujarRoles() {
+    const cont=$('roles'); cont.replaceChildren();
+    for (const r of state.roles) {
+      const b=document.createElement('button');b.type='button';b.className='role-item'+(r.id===state.selected?' selected':'');
+      const left=document.createElement('span');left.textContent=r.nombre+' ('+r.codigo+')';
+      const badge=document.createElement('span');badge.className='pill'+(r.activo?'':' off');badge.textContent=r.activo?'Activo':'Inactivo';
+      b.append(left,badge);b.addEventListener('click',()=>{permisosPendientes.clear(); state.selected=r.id; dibujar();});cont.append(b);
+    }
+    if(!state.roles.length)cont.textContent='No se encontraron roles.';
+  }
+  function dibujarPermisos() {
+    const r=seleccionado();const cont=$('permisos');cont.replaceChildren();
+    const buscar=$('buscar-permiso').value.trim().toLowerCase();
+    if(!r){cont.textContent='Selecciona un rol primero.';$('guardar-permisos').disabled=true;return;}
+    for (const p of state.permisos) {
+      if(!(`${p.nombre} ${p.codigo} ${p.descripcion}`).toLowerCase().includes(buscar))continue;
+      const label=document.createElement('label');label.className='perm';
+      const check=document.createElement('input');check.type='checkbox';check.value=p.id;check.checked=permisosPendientes.has(p.id)?permisosPendientes.get(p.id):r.permisos_ids.includes(p.id);
+      check.dataset.permissionId=String(p.id);
+      const info=document.createElement('span');const titulo=document.createElement('strong');titulo.textContent=p.nombre;
+      const code=document.createElement('span');code.className='code';code.textContent=p.codigo;
+      info.append(titulo,code);label.append(check,info);cont.append(label);
+    }
+    $('guardar-permisos').disabled=!r.activo;
+  }
+  function dibujarOperadores() {
+    const os=$('operador-select'),rs=$('rol-select');
+    const ov=os.value,rv=rs.value;os.replaceChildren();rs.replaceChildren();
+    for (const o of state.operadores)option(os,o.id,`${o.nombre} (${o.usuario}) — ${o.rol}${o.activo?'':' · inactivo'}`);
+    for (const r of state.roles.filter(x=>x.activo))option(rs,r.codigo,`${r.nombre} (${r.codigo})`);
+    if([...os.options].some(o=>o.value===ov))os.value=ov;
+    if([...rs.options].some(o=>o.value===rv))rs.value=rv;
+  }
+  function dibujar() {
+    dibujarRoles();dibujarOperadores();const r=seleccionado();
+    $('sin-rol').classList.toggle('hidden',!!r);$('editar-form').classList.toggle('hidden',!r);
+    $('seleccion-titulo').textContent=r?'· '+r.nombre:'';
+    if(r){ $('codigo-actual').textContent=r.codigo;$('conteo-operadores').textContent=`${r.total_operadores} operador(es), ${r.operadores_activos} activo(s)`;
+      $('editar-nombre').value=r.nombre;$('editar-descripcion').value=r.descripcion;$('editar-activo').checked=r.activo;
+      $('editar-activo').disabled=r.codigo==='ADMIN'; }
+    dibujarPermisos();
+  }
+  async function cargar(seleccionarCodigo) {
+    const [r,p,o]=await Promise.all([api('/api/admin/roles'),api('/api/admin/roles/permisos'),api('/api/admin/roles/operadores')]);
+    permisosPendientes.clear();state.roles=r.roles;state.permisos=p.permisos;state.operadores=o.operadores;
+    if(seleccionarCodigo)state.selected=state.roles.find(x=>x.codigo===seleccionarCodigo)?.id ?? null;
+    else if(!state.roles.some(x=>x.id===state.selected))state.selected=state.roles[0]?.id ?? null;
+    dibujar();
+  }
+  async function actuar(fn,okMsg) { try{await fn();aviso(okMsg,'ok');}catch(e){aviso(e.message,'danger');} }
+  $('refrescar').addEventListener('click',()=>actuar(()=>cargar(),'Datos actualizados'));
+  $('buscar-permiso').addEventListener('input',dibujarPermisos);
+  $('crear-form').addEventListener('submit',e=>{e.preventDefault();actuar(async()=>{
+    const codigo=$('nuevo-codigo').value.trim().toUpperCase();
+    await api('/api/admin/roles','POST',{codigo,nombre:$('nuevo-nombre').value.trim(),descripcion:$('nueva-desc').value.trim()});
+    $('crear-form').reset();await cargar(codigo);
+  },'Rol creado. Asigna sus permisos a la derecha.');});
+  $('editar-form').addEventListener('submit',e=>{e.preventDefault();const r=seleccionado();if(!r)return;actuar(async()=>{
+    await api('/api/admin/roles/'+r.id,'PATCH',{nombre:$('editar-nombre').value,descripcion:$('editar-descripcion').value,activo:$('editar-activo').checked});
+    await cargar(r.codigo);
+  },'Rol actualizado');});
+  // Los checkboxes se filtran visualmente. Preservamos los no visibles al guardar.
+  $('permisos').addEventListener('change',e=>{
+    if(e.target.matches('input[type="checkbox"]'))permisosPendientes.set(Number(e.target.value),e.target.checked);
+  });
+  function borrarPendientes(){permisosPendientes.clear();}
+  // Guardar no mezcla selecciones de un rol con otro.
+  $('guardar-permisos').addEventListener('click',()=>{const r=seleccionado();if(!r)return;actuar(async()=>{
+    const ids=new Set(r.permisos_ids);
+    for(const [id,on] of permisosPendientes){if(on)ids.add(id);else ids.delete(id);}
+    await api('/api/admin/roles/'+r.id+'/permisos','PUT',{permisos_ids:[...ids]});
+    borrarPendientes();await cargar(r.codigo);
+  },'Permisos guardados');});
+  $('asignar-form').addEventListener('submit',e=>{e.preventDefault();const id=$('operador-select').value;const rol=$('rol-select').value;
+    if(!confirm(`¿Asignar el rol ${rol} al operador seleccionado?`))return;
+    actuar(async()=>{await api('/api/admin/roles/operadores/'+id+'/rol','PUT',{rol});await cargar();},'Rol del operador actualizado');
+  });
+  $('salir').addEventListener('click',()=>actuar(async()=>{await api('/auth/logout','POST',{});location.href='/login';},'Sesión cerrada'));
+  (async()=>{try{await csrfToken();await cargar();}catch(e){aviso(e.message,'danger');}})();
+})();
+</script>
+</body>
+</html>

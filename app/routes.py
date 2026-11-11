@@ -12,6 +12,8 @@ from app.recorridos import preparar_asignacion_recorrido
 
 from app.models import (
     Doctor,
+    Consultorio,
+    AsignacionDoctor,
     Paciente,
     Atencion,
     AtencionServicio,
@@ -62,10 +64,12 @@ _POLITICAS_API = {
     'get_servicios_sede': ('catalogo_sede', 'catalogos_ver'),
     'turnos_area_sede': ('area_id', 'turnos_ver'),
     'caja_turnos': ('area_query_caja', 'turnos_ver'),
+    'opciones_avance_recepcion': ('turno', 'turnos_ver'),
     'trabajo_social_turnos': ('area_query_social', 'trabajo_social_ver'),
     'get_atenciones': ('sede_propia', 'atenciones_ver'),
     'get_turnos': ('sede_propia', 'turnos_ver'),
     'buscar_paciente_control': ('area_caja', 'recepcion_ver'),
+    'doctores_recepcion': ('area_caja', 'recepcion_ver'),
     'registrar_control': ('area_json_caja', 'recepcion_registrar'),
     'crear_turno': ('area_json_caja', 'turnos_crear_legacy'),
     'llamar_turno': ('turno', 'turnos_llamar'),
@@ -129,6 +133,59 @@ def comprobar_autorizacion_api():
             return _rechazar_acceso('El cuerpo JSON debe ser un objeto', 400)
 
     valores = request.view_args or {}
+
+    # =====================================================
+    # PANEL MÉDICO V2 — AUTORIZACIÓN INDIVIDUAL Y EXPLÍCITA
+    # =====================================================
+    # El rol MEDICO solo utiliza el panel individual y las
+    # cinco acciones operativas autorizadas. El resto de la API
+    # genérica (listados, movimientos y solicitudes) se deniega
+    # para impedir consultas o mutaciones fuera de su bandeja.
+    if current_user.rol == 'MEDICO':
+        acciones_medicas = {
+            'llamar_turno', 'iniciar_turno', 'omitir_turno',
+            'pausar_turno', 'reanudar_turno',
+        }
+        if nombre_endpoint not in acciones_medicas:
+            return _rechazar_acceso(
+                'Utilice exclusivamente el Panel de Doctores para esta operación'
+            )
+        doctor = getattr(current_user, 'doctor', None)
+        if (
+            not getattr(current_user, 'doctor_id', None)
+            or doctor is None or not doctor.activo
+        ):
+            return _rechazar_acceso('Operador sin médico activo vinculado')
+
+        turno = db.session.get(TurnoArea, valores.get('turno_id'))
+        if turno is None:
+            return _rechazar_acceso('Turno no encontrado', 404)
+        if (
+            turno.doctor_id != current_user.doctor_id
+            or turno.atencion is None
+            or turno.atencion.sede_id != current_user.sede_id
+            or turno.area is None
+            or turno.area.codigo != 'CONSULTA'
+        ):
+            return _rechazar_acceso('El turno no pertenece al médico autenticado')
+        if not verificar_acceso_turno(current_user, turno, codigo_permiso):
+            return _rechazar_acceso('No tiene autorización sobre este turno')
+        from app.models import AsignacionDoctor, Consultorio
+        tiene_consultorio = (
+            db.session.query(AsignacionDoctor.id)
+            .join(Consultorio, Consultorio.id == AsignacionDoctor.consultorio_id)
+            .filter(
+                AsignacionDoctor.doctor_id == current_user.doctor_id,
+                AsignacionDoctor.activo.is_(True),
+                Consultorio.activo.is_(True),
+                Consultorio.sede_id == current_user.sede_id,
+                Consultorio.area_id == turno.area_id,
+            )
+            .first()
+        )
+        if not tiene_consultorio:
+            return _rechazar_acceso('Sin consultorio activo asignado en esta sede')
+        return None
 
     if alcance == 'general':
         return None
@@ -1214,6 +1271,107 @@ def actualizar_estado_servicios_solicitud(
         )
 
 
+# RECEPCION_MEDICOS_V1: catálogo y propagación de médico solicitado
+
+def _filas_doctores_habilitados(sede_id, doctor_id=None, area_id=None):
+    """Médicos activos con consultorio y asignación activa en la sede.
+
+    La validación es por sede y área, NO por fecha/hora: aún no está
+    confirmada la convención de dia_semana de asignaciones_doctores.
+    """
+    consulta = (
+        db.session.query(Doctor, Consultorio)
+        .join(AsignacionDoctor, AsignacionDoctor.doctor_id == Doctor.id)
+        .join(Consultorio, Consultorio.id == AsignacionDoctor.consultorio_id)
+        .join(Area, Area.id == Consultorio.area_id)
+        .join(SedeArea, and_(
+            SedeArea.sede_id == Consultorio.sede_id,
+            SedeArea.area_id == Consultorio.area_id,
+        ))
+        .filter(
+            Consultorio.sede_id == sede_id,
+            Doctor.activo.is_(True),
+            AsignacionDoctor.activo.is_(True),
+            Consultorio.activo.is_(True),
+            Area.activo.is_(True),
+            SedeArea.activo.is_(True),
+        )
+    )
+    if doctor_id is not None:
+        consulta = consulta.filter(Doctor.id == doctor_id)
+    if area_id is not None:
+        consulta = consulta.filter(Consultorio.area_id == area_id)
+    return consulta.order_by(Doctor.nombre.asc(), Consultorio.codigo.asc()).all()
+
+
+def _doctor_habilitado_en_sede(doctor_id, sede_id, area_id=None):
+    filas = _filas_doctores_habilitados(sede_id, doctor_id, area_id)
+    return filas[0][0] if filas else None
+
+
+def _doctor_solicitado_para_destino(atencion, area_destino):
+    """Asigna al médico solo al entrar al área donde tiene consultorio.
+
+    En CAJA y otras áreas NO se escribe doctor_id en el turno.
+    La atención conserva el médico solicitado durante el recorrido.
+    """
+    solicitado_id = getattr(atencion, 'doctor_solicitado_id', None)
+    if not solicitado_id or area_destino is None:
+        return None
+
+    # Un área con consultorios es el destino médico. El propio catálogo
+    # define el área (no se inventan destinos ni se salta Caja).
+    tiene_consultorio = (
+        db.session.query(Consultorio.id)
+        .join(SedeArea, and_(
+            SedeArea.sede_id == Consultorio.sede_id,
+            SedeArea.area_id == Consultorio.area_id,
+        ))
+        .filter(
+            Consultorio.sede_id == atencion.sede_id,
+            Consultorio.area_id == area_destino.id,
+            Consultorio.activo.is_(True),
+            SedeArea.activo.is_(True),
+        )
+        .first()
+    )
+    if not tiene_consultorio:
+        return None
+
+    doctor = _doctor_habilitado_en_sede(
+        solicitado_id, atencion.sede_id, area_destino.id
+    )
+    if doctor is None:
+        raise ValueError(
+            'El médico solicitado ya no tiene asignación activa en el área '
+            'de Consulta Médica. Corrige la asignación antes de avanzar.'
+        )
+    return doctor.id
+
+
+@bp.get('/recepcion/doctores')
+def doctores_recepcion():
+    """Catálogo acotado a la sede de Recepción/Caja autenticada."""
+    filas = _filas_doctores_habilitados(current_user.sede_id)
+    resultado = {}
+    for doctor, consultorio in filas:
+        item = resultado.setdefault(doctor.id, {
+            'id': doctor.id,
+            'nombre': doctor.nombre,
+            'especialidad': doctor.especialidad,
+            'consultorios': [],
+        })
+        if not any(c['id'] == consultorio.id for c in item['consultorios']):
+            item['consultorios'].append({
+                'id': consultorio.id,
+                'codigo': consultorio.codigo,
+                'nombre': consultorio.nombre,
+                'area_id': consultorio.area_id,
+            })
+    return jsonify(success=True, doctores=list(resultado.values()),
+                   total=len(resultado))
+
+
 def mover_turno_a_area(
     turno_actual,
     area_destino,
@@ -1242,6 +1400,13 @@ def mover_turno_a_area(
     Esta función NO hace commit.
     El endpoint que la utilice decide cuándo guardar.
     """
+
+    # Mantener el médico elegido al llegar a su consultorio, sin alterar
+    # la cola de CAJA ni los recorridos previamente publicados.
+    if doctor_id is None and turno_actual.atencion is not None:
+        doctor_id = _doctor_solicitado_para_destino(
+            turno_actual.atencion, area_destino
+        )
 
     # =============================================
     # 1. DATOS DEL TURNO ACTUAL
@@ -6541,6 +6706,15 @@ def registrar_control():
                     )
                 }), 404
 
+            if not _doctor_habilitado_en_sede(doctor.id, sede.id):
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'El médico no está activo o no tiene una '
+                        'asignación de consultorio activa en esta sede'
+                    )
+                }), 409
+
         # =================================================
         # VALIDAR CITA
         # =================================================
@@ -6749,7 +6923,9 @@ def registrar_control():
                 servicio_cola_id
             ),
 
-            doctor_id=None,
+            doctor_id=_doctor_solicitado_para_destino(
+                atencion, area_destino
+            ),
 
             numero_turno=(
                 generar_temporal()
@@ -8220,6 +8396,104 @@ def trabajo_social_afiliar(turno_id):
 # =====================================================
 # CAJA
 # =====================================================
+
+
+# RECEPCION_OPERACION_V6: consulta de opciones, sin modificar turnos.
+@bp.route('/recepcion/turnos/<int:turno_id>/opciones-avance', methods=['GET'])
+def opciones_avance_recepcion(turno_id):
+    turno = db.session.get(TurnoArea, turno_id)
+    if turno is None or turno.atencion is None:
+        return jsonify({'success': False, 'error': 'Turno no encontrado'}), 404
+
+    if not turno.area or turno.area.codigo != 'CAJA':
+        return jsonify({'success': False, 'error': 'El turno no corresponde a Caja'}), 409
+
+    if turno.estado != 'EN_ATENCION':
+        return jsonify({
+            'success': False,
+            'error': 'Primero debes llamar e iniciar la atención en Caja'
+        }), 409
+
+    atencion = turno.atencion
+    if atencion.estado != 'ACTIVA':
+        return jsonify({'success': False, 'error': 'La atención no está activa'}), 409
+
+    # Solo se presentan opciones del motor. El POST existente vuelve a
+    # validar estado, sede, permisos, pagos y requisitos del recorrido.
+    opciones = []
+    solicitudes = (
+        SolicitudArea.query
+        .filter(
+            SolicitudArea.atencion_id == atencion.id,
+            SolicitudArea.estado == 'PENDIENTE',
+            SolicitudArea.fecha_inicio.isnot(None)
+        )
+        .order_by(SolicitudArea.id.asc())
+        .all()
+    )
+    if solicitudes:
+        for solicitud in solicitudes:
+            recorrido_info = resolver_recorrido_area_sede(
+                atencion.sede_id, solicitud.area_destino_id
+            )
+            if not recorrido_info.get('valido'):
+                continue
+            ids = [paso['area_id'] for paso in recorrido_info['recorrido']]
+            if turno.area_id not in ids[:-1]:
+                continue
+            siguiente = db.session.get(Area, ids[ids.index(turno.area_id) + 1])
+            if siguiente:
+                opciones.append({
+                    'tipo': 'SOLICITUD',
+                    'id': solicitud.id,
+                    'etiqueta': 'Continuar solicitud #' + str(solicitud.id)
+                                + ' hacia ' + siguiente.nombre,
+                    'destino': siguiente.nombre,
+                    'requiere_confirmar_requisito': True
+                })
+    else:
+        reglas = (
+            ReglaTransicion.query
+            .filter(
+                ReglaTransicion.sede_id == atencion.sede_id,
+                ReglaTransicion.area_origen_id == turno.area_id,
+                ReglaTransicion.activo.is_(True)
+            )
+            .order_by(ReglaTransicion.prioridad.desc(), ReglaTransicion.id.asc())
+            .all()
+        )
+        vistos = set()
+        for regla in reglas:
+            if regla.evento in vistos:
+                continue
+            vistos.add(regla.evento)
+            transicion = resolver_transicion(
+                atencion.sede_id, turno.area_id, regla.evento
+            )
+            if not transicion.get('success'):
+                continue
+            destino = transicion['area_destino']
+            # El endpoint de transición no admite destinos con requisitos previos.
+            camino = resolver_recorrido_area_sede(atencion.sede_id, destino.id)
+            if not camino.get('valido') or len(camino['recorrido']) > 1:
+                continue
+            opciones.append({
+                'tipo': 'TRANSICION',
+                'evento': regla.evento,
+                'etiqueta': regla.evento.replace('_', ' ').capitalize()
+                            + ' → ' + destino.nombre,
+                'destino': destino.nombre,
+                'requiere_confirmar_requisito': False
+            })
+
+    return jsonify({
+        'success': True,
+        'turno': {'id': turno.id, 'numero': turno.numero_turno, 'estado': turno.estado},
+        'opciones': opciones,
+        'mensaje': ('Selecciona el siguiente paso autorizado.' if opciones
+                    else 'No existe un avance directo habilitado por el motor. '
+                         'Revisa servicios, solicitudes y recorridos en Seguimiento.')
+    })
 
 @bp.route('/caja/turnos', methods=['GET'])
 def caja_turnos():

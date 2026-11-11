@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Turnero | Consulta Médica</title>
+  <style>
+    :root{color-scheme:light;--base:#f4f5f4;--paper:#fff;--paper2:#f0f2f1;--ink:#1e2c34;--ink2:#65747b;--muted:#87959a;--line:#e1e6e5;--nav:#142b38;--nav2:#243e4b;--gold:#c6a773;--gold2:#a58859;--success:#327b66;--successbg:#e7f2ee;--warn:#976a2e;--warnbg:#f9f1e2;--danger:#a55351;--dangerbg:#faebea;--blue:#416e89;--bluebg:#e7f0f6;--shadow:0 10px 35px #0f253008;font-family:'Aptos','Segoe UI',Arial,sans-serif}
+    html[data-theme="dark"]{color-scheme:dark;--base:#101e28;--paper:#192c38;--paper2:#223542;--ink:#e9efef;--ink2:#b0bec4;--muted:#8ea4ab;--line:#304653;--nav:#0c1c27;--nav2:#284250;--gold:#d4b887;--gold2:#d6b887;--success:#8fd0b9;--successbg:#244339;--warn:#e5c690;--warnbg:#493e30;--danger:#f0b5af;--dangerbg:#462e32;--blue:#a6c6d5;--bluebg:#274455;--shadow:0 12px 38px #0002}
+    *{box-sizing:border-box}body{margin:0;background:var(--base);color:var(--ink);font-size:13px;line-height:1.55}button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer}button:disabled{opacity:.5;cursor:not-allowed}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:3px}.hidden{display:none!important}
+    header{min-height:88px;background:var(--nav);color:#fff;border-bottom:1px solid #ffffff12;position:relative}header:before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,#a98756,#decaa0 45%,#ab8b59)}.top{max-width:1490px;min-height:88px;margin:auto;padding:0 27px;display:flex;align-items:center;gap:25px}.brand{display:flex;align-items:center;gap:13px;min-width:255px}.brandmark{width:43px;height:43px;display:grid;place-items:center;border:1px solid #d4b88799;color:#e2c795;font:24px Georgia,serif}.brandname{font:17px Georgia,serif}.brandsub{display:block;font:700 9px Arial,sans-serif;letter-spacing:1.9px;color:#bec9cd;margin-top:4px}.topnav{height:88px;display:flex;align-items:stretch;gap:5px;border-left:1px solid #ffffff20;padding-left:19px}.topnav a{display:flex;align-items:center;padding:0 15px;color:#c8d0d4;text-decoration:none;font-size:12px;font-weight:700;border-bottom:2px solid transparent}.topnav a.active{color:#fff;border-bottom-color:var(--gold)}.headerend{margin-left:auto;display:flex;align-items:center;gap:12px}.profile{text-align:right}.profile b{display:block;font-size:12px}.profile small{font-size:10px;color:#b7c5ca}.initials{width:35px;height:35px;border-radius:5px;background:#dbc7a5;color:#26353c;display:grid;place-items:center;font-weight:800}.iconbtn{width:36px;height:36px;border:1px solid #ffffff35;color:white;background:transparent;border-radius:5px;font-weight:700}.iconbtn:hover{background:#ffffff18}
+    main{max-width:1490px;margin:0 auto;padding:32px 27px 45px}.eyebrow{text-transform:uppercase;color:var(--gold2);font-size:10px;font-weight:800;letter-spacing:2px;display:flex;align-items:center;gap:11px}.eyebrow:before{content:"";width:30px;height:1px;background:var(--gold)}.hero{display:flex;justify-content:space-between;gap:25px;align-items:center;border-bottom:1px solid var(--line);padding:7px 0 24px}.hero h1{font:normal clamp(30px,3vw,45px)/1.15 Georgia,serif;margin:14px 0 8px;letter-spacing:-.7px}.subtitle{color:var(--ink2);font-size:12px}.heroactions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:5px;min-height:40px;padding:9px 15px;font-weight:750;font-size:12px}.btn:hover{border-color:var(--gold);background:var(--paper2)}.btn.primary{background:var(--nav);border-color:var(--nav);color:#fff}.btn.primary:hover{background:var(--nav2)}.btn.danger{color:var(--danger);border-color:var(--danger)}.btn.small{min-height:32px;padding:5px 10px;font-size:11px}.pill{border:1px solid var(--line);background:var(--paper);padding:9px 11px;border-radius:5px;color:var(--ink2);white-space:nowrap;font-size:11px}.dot{display:inline-block;background:var(--success);width:7px;height:7px;border-radius:50%;margin-right:5px}.dot.off{background:var(--danger)}
+    .note{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:5px;padding:14px 17px;color:var(--ink2);margin:22px 0;font-size:12px}.note strong{color:var(--ink)}
+    .stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow);margin-bottom:22px}.stat{padding:21px 20px 19px;border-right:1px solid var(--line);position:relative}.stat:last-child{border-right:0}.stat:before{content:"";position:absolute;top:0;left:20px;width:30px;height:2px;background:var(--gold)}.stat .name{font-size:10px;letter-spacing:1px;text-transform:uppercase;font-weight:800;color:var(--ink2)}.stat .value{font:normal 36px Georgia,serif;margin:13px 0 8px}.stat .foot{color:var(--muted);font-size:10px}
+    .workspace{display:grid;grid-template-columns:minmax(0,1fr) 303px;gap:20px;align-items:start}.panel{background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);overflow:hidden}.panelhead{padding:24px 24px 18px;display:flex;justify-content:space-between;gap:14px;align-items:center}.panelhead h2{font:normal 22px Georgia,serif;margin:0}.panelhead small{display:block;color:var(--ink2);font-size:11px;margin-top:4px}.tools{display:flex;align-items:center;gap:9px;padding:0 24px 20px;flex-wrap:wrap}.segmented{display:flex;background:var(--paper2);border:1px solid var(--line);padding:3px;border-radius:6px;gap:2px}.segmented button{background:transparent;border:0;border-radius:4px;padding:9px 12px;font-size:11px;color:var(--ink2);font-weight:750}.segmented button.selected{background:var(--paper);color:var(--ink);box-shadow:0 1px 4px #00000012}.search{margin-left:auto;flex:1;max-width:350px;min-width:180px;padding:9px 11px;border:1px solid var(--line);border-radius:5px;background:var(--paper);font-size:12px}.areaSelector{min-height:40px;padding:8px 10px;border:1px solid var(--line);background:var(--paper);border-radius:5px;max-width:215px}.tablewrap{overflow:auto}table{border-collapse:collapse;width:100%;text-align:left;min-width:740px}th{background:var(--paper2);border-block:1px solid var(--line);text-transform:uppercase;letter-spacing:1px;font-size:9px;color:var(--ink2);padding:13px 17px;white-space:nowrap}td{padding:17px;border-bottom:1px solid var(--line);vertical-align:middle;font-size:12px}tbody tr:last-child td{border-bottom:none}tbody tr:hover{background:var(--paper2)}.ticket{font-weight:800;font-size:12px}.secondary{color:var(--ink2);font-size:11px}.minor{color:var(--muted);font-size:10px}.patient{font-weight:700}.badge{font-size:10px;border-radius:4px;padding:5px 8px;display:inline-block;white-space:nowrap;font-weight:750;background:var(--paper2);color:var(--ink2)}.badge.ESPERA{background:var(--warnbg);color:var(--warn)}.badge.LLAMADO{background:var(--bluebg);color:var(--blue)}.badge.EN_ATENCION{background:var(--successbg);color:var(--success)}.badge.PAUSADO{background:var(--dangerbg);color:var(--danger)}.rowactions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;min-width:165px}.footbar{display:flex;justify-content:space-between;gap:12px;padding:12px 24px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}.empty{text-align:center;padding:50px 20px;color:var(--ink2)}.empty b{display:block;font-size:14px;color:var(--ink);margin-bottom:7px}
+    aside{display:grid;gap:17px}.side{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:20px;box-shadow:var(--shadow)}.side h3{margin:0 0 15px;font-size:11px;text-transform:uppercase;letter-spacing:1.1px}.current{background:var(--nav);color:white;min-height:190px;padding:23px;position:relative;overflow:hidden}.current:after{content:"";position:absolute;border:1px solid #d3b7874a;border-radius:50%;width:170px;height:170px;right:-50px;top:-80px;box-shadow:0 0 0 35px #ffffff08;pointer-events:none}.current .ey{font-size:10px;text-transform:uppercase;letter-spacing:1.6px;color:#e2cbac}.current .num{font:normal 39px Georgia,serif;margin-top:23px}.current .name{font-weight:750;margin-top:7px;font-size:12px;max-width:240px;overflow-wrap:anywhere}.current .small{color:#b9cbd0;font-size:11px;margin-top:7px}.kv{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);font-size:11px}.kv:last-child{border-bottom:none}.kv span{color:var(--ink2)}.kv b{text-align:right}.side p{font-size:11px;color:var(--ink2);margin:0}.hintlist{margin:12px 0 0;padding-left:17px;color:var(--ink2);font-size:11px}.hintlist li{margin:7px 0}
+    footer{border-top:1px solid var(--line);margin-top:32px;padding:21px 0;display:flex;justify-content:space-between;color:var(--muted);font-size:11px}
+    .overlay{position:fixed;inset:0;background:#0b1925bd;display:grid;place-items:center;padding:16px;z-index:20}.modal{width:min(690px,100%);max-height:92vh;overflow:auto;background:var(--paper);color:var(--ink);padding:26px;border:1px solid var(--line);border-radius:8px;box-shadow:0 35px 100px #0005}.modal.small{width:min(480px,100%)}.modalhead{display:flex;align-items:start;justify-content:space-between;gap:15px}.modal h2{font:normal 25px Georgia,serif;margin:0 0 7px}.close{border:1px solid var(--line);background:var(--paper2);border-radius:5px;padding:7px 10px}.detailgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:20px 0}.detailgrid article{background:var(--paper2);padding:12px;border-radius:5px}.detailgrid small{font-size:10px;color:var(--ink2);display:block;margin-bottom:5px}.detailgrid strong{overflow-wrap:anywhere}.history{display:grid;gap:10px}.historyItem{border-left:2px solid var(--gold);padding:2px 0 3px 13px}.historyItem .minor{display:block;margin:3px 0}.field{display:grid;gap:6px;margin:15px 0}.field label{font-weight:700;font-size:12px}.field input,.field select,.field textarea{border:1px solid var(--line);border-radius:5px;background:var(--paper);padding:10px;width:100%}.dialogactions{display:flex;justify-content:flex-end;gap:8px;margin-top:22px}.toast{position:fixed;bottom:20px;right:20px;max-width:400px;background:var(--nav);color:#fff;border:1px solid #d9c59a67;border-radius:6px;padding:15px 19px;box-shadow:0 20px 70px #0003;z-index:30;font-size:12px}.toast.error{border-color:#e9a7a3}
+    @media(max-width:1150px){.workspace{grid-template-columns:1fr}aside{grid-template-columns:repeat(3,1fr)}.topnav{display:none}}
+    @media(max-width:850px){.stats{grid-template-columns:repeat(3,1fr)}.stat{border-bottom:1px solid var(--line)}aside{grid-template-columns:1fr 1fr}.top{padding:0 17px}.hero{flex-direction:column;align-items:flex-start}main{padding:25px 17px}.tools{align-items:stretch}.search{max-width:none;flex:1}}
+    @media(max-width:560px){.profile{display:none}.brand{min-width:0}.brandname{font-size:15px}.stats{grid-template-columns:repeat(2,1fr)}aside{grid-template-columns:1fr}.stat{padding:17px}.stat .value{font-size:31px}.heroactions{width:100%}.panelhead{padding:19px 15px}.tools{padding:0 15px 16px}.search{width:100%;flex-basis:100%}.footbar{padding:12px 15px}.detailgrid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header><div class="top">
+  <div class="brand"><span class="brandmark">TR</span><span class="brandname">Turnero<span class="brandsub">CONSULTA MÉDICA</span></span></div>
+  <nav class="topnav" aria-label="Secciones"><a href="/medicos" class="active">Mesa médica</a></nav>
+  <div class="headerend"><div class="profile"><b id="userName">Cargando operador...</b><small id="userRole">Consulta Médica</small></div><span class="initials" id="avatar">CM</span><button class="iconbtn" id="themeBtn" title="Cambiar tema" aria-label="Cambiar tema">◐</button><button class="iconbtn" id="logoutBtn" title="Cerrar sesión" aria-label="Cerrar sesión">↪</button></div>
+</div></header>
+<main>
+  <div class="eyebrow">Operación clínica</div>
+  <section class="hero"><div><h1>Mesa de Consulta Médica</h1><div class="subtitle"><span id="siteLabel">Sede del operador</span> · <span id="dateLabel"></span></div></div><div class="heroactions"><select class="areaSelector" id="areaSelect" aria-label="Seleccionar área clínica"><option value="">Cargando áreas...</option></select><span class="pill"><span class="dot off" id="connectionDot"></span><span id="connectionStatus">Sincronizando</span></span><button class="btn primary" id="refreshBtn">↻ Actualizar</button></div></section>
+  <div class="note"><strong>Panel individual del médico.</strong> Solo se muestran turnos asignados al médico vinculado a tu sesión. Los pacientes sin médico asignado no aparecen aquí. Los consultorios y horarios son informativos hasta validar la convención de días.</div>
+  <section class="stats" aria-label="Resumen de turnos">
+    <article class="stat"><div class="name">En espera</div><div class="value" id="kWait">—</div><div class="foot">Pendientes de llamado</div></article>
+    <article class="stat"><div class="name">Llamados</div><div class="value" id="kCalled">—</div><div class="foot">Aguardando ingreso</div></article>
+    <article class="stat"><div class="name">En atención</div><div class="value" id="kCare">—</div><div class="foot">Consulta iniciada</div></article>
+    <article class="stat"><div class="name">Pausados</div><div class="value" id="kPaused">—</div><div class="foot">Atención suspendida</div></article>
+    <article class="stat"><div class="name">Finalizados hoy</div><div class="value" id="kFinished">—</div><div class="foot">Turnos del área</div></article>
+  </section>
+  <div class="workspace">
+    <section class="panel" aria-label="Listado médico">
+      <div class="panelhead"><div><h2 id="panelTitle">Cola de pacientes</h2><small id="panelSubtitle">Turnos reales registrados en el área</small></div><span class="secondary" id="queueCounter">—</span></div>
+      <div class="tools"><div class="segmented" role="tablist" aria-label="Vista operativa"><button class="selected" data-view="cola" role="tab" aria-selected="true">Cola completa</button><button data-view="atendiendo" role="tab" aria-selected="false">En atención</button><button data-view="historial" role="tab" aria-selected="false">Finalizados hoy</button></div><input id="search" class="search" aria-label="Buscar paciente o turno" placeholder="Buscar folio, paciente, turno..."></div>
+      <div class="tablewrap"><table><thead><tr><th>Turno</th><th>Paciente</th><th>Estado</th><th>Médico / servicio</th><th>Tiempo en área</th><th style="text-align:right">Acciones</th></tr></thead><tbody id="tableBody"><tr><td colspan="6"><div class="empty">Cargando turnos...</div></td></tr></tbody></table></div>
+      <div class="footbar"><span id="listFoot">Actualización automática cada 30 segundos</span><span>Operación por área</span></div>
+    </section>
+    <aside>
+      <article class="side current"><div class="ey">Atención en curso</div><div class="num" id="currentTicket">—</div><div class="name" id="currentPatient">Sin consulta activa</div><div class="small" id="currentDetails">Selecciona un turno para ver sus detalles.</div></article>
+      <article class="side"><h3>Estación médica</h3><div class="kv"><span>Usuario</span><b id="stationUser">—</b></div><div class="kv"><span>Área</span><b id="stationArea">—</b></div><div class="kv"><span>Última sincronización</span><b id="stationUpdated">—</b></div></article>
+      <article class="side"><h3>Acciones permitidas</h3><p>Los botones dependen de tus permisos y del estado del turno. Las transferencias, el cierre de la atención y las solicitudes médicas se integrarán después de validar su relación con el recorrido versionado.</p><ul class="hintlist"><li>ESPERA → llamar</li><li>LLAMADO → iniciar u omitir</li><li>EN_ATENCION → pausar</li><li>PAUSADO → reanudar</li></ul></article>
+    </aside>
+  </div>
+  <footer><span>Turnero Oftalmológico V2 · Consulta Médica</span><span id="footerYear"></span></footer>
+</main>
+<div id="detailOverlay" class="overlay hidden" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="detailHeading"><div class="modalhead"><div><div class="eyebrow">Detalle operativo</div><h2 id="detailHeading">Turno</h2></div><button class="close" id="closeDetail" aria-label="Cerrar detalle">Cerrar ×</button></div><div id="detailBody">Cargando...</div></section></div>
+<div id="pauseOverlay" class="overlay hidden" role="presentation"><section class="modal small" role="dialog" aria-modal="true" aria-labelledby="pauseHeading"><div class="modalhead"><h2 id="pauseHeading">Pausar atención</h2><button class="close" id="closePause" aria-label="Cancelar">Cerrar ×</button></div><form id="pauseForm"><p class="secondary">El turno quedará en estado PAUSADO hasta que sea reanudado.</p><div class="field"><label for="pauseCode">Motivo</label><select id="pauseCode"><option value="MEDICAMENTO">Medicamento</option><option value="EQUIPO">Equipo</option><option value="PERSONAL">Personal</option><option value="RESULTADO">Esperando resultado</option><option value="OTRO" selected>Otro</option></select></div><div class="field"><label for="pauseText">Observaciones (opcional)</label><textarea id="pauseText" rows="3" maxlength="500" placeholder="Motivo o información operativa"></textarea></div><div class="field"><label for="pauseMinutes">Tiempo objetivo en minutos (opcional)</label><input id="pauseMinutes" type="number" min="1" max="1440" step="1" placeholder="Ejemplo: 15"></div><div class="dialogactions"><button type="button" class="btn" id="cancelPause">Cancelar</button><button type="submit" class="btn primary" id="confirmPause">Confirmar pausa</button></div></form></section></div>
+<div id="toast" class="toast hidden" role="status"></div>
+<script>
+(()=>{'use strict';
+  const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+  const state={user:null,areaId:null,areas:[],turnos:[],historial:[],acciones:{},vista:'cola',busy:false,pauseTurno:null,dialogOpen:false};
+  let toastTimer=null, csrfToken=null;
+  const statuses={ESPERA:'En espera',LLAMADO:'Llamado',EN_ATENCION:'En atención',PAUSADO:'Pausado',FINALIZADO:'Finalizado',CANCELADO:'Cancelado'};
+  const safe=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtDate=x=>{if(!x)return '—';const d=new Date(x);return isNaN(d.getTime())?'—':new Intl.DateTimeFormat('es-MX',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}).format(d)};
+  const set=(selector,value)=>{const el=$(selector);if(el)el.textContent=String(value??'—')};
+  function toast(message,error=false){const el=$('#toast');el.textContent=message;el.classList.toggle('error',error);el.classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.add('hidden'),5500)}
+  function theme(){try{return localStorage.getItem('turnero-institucional-theme')||'light'}catch{return 'light'}}
+  function setTheme(value){document.documentElement.dataset.theme=value;try{localStorage.setItem('turnero-institucional-theme',value)}catch{}}
+  setTheme(theme());$('#themeBtn').addEventListener('click',()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+  $('#footerYear').textContent=new Date().getFullYear();$('#dateLabel').textContent=new Intl.DateTimeFormat('es-MX',{dateStyle:'full'}).format(new Date());
+  async function request(path,options={}){
+    const method=(options.method||'GET').toUpperCase();const headers=new Headers(options.headers||{});
+    if(['POST','PUT','PATCH','DELETE'].includes(method)){
+      if(!csrfToken){const r=await fetch('/csrf-token',{credentials:'same-origin',cache:'no-store'});if(!r.ok)throw new Error('No se pudo obtener el token CSRF');const d=await r.json();csrfToken=d.csrf_token;if(!csrfToken)throw new Error('Token CSRF no disponible')}
+      headers.set('X-CSRFToken',csrfToken);
+    }
+    const r=await fetch(path,{...options,headers,method,credentials:'same-origin',cache:'no-store'});
+    const d=await r.json().catch(()=>({}));
+    if(r.status===401){window.location.replace('/login');throw new Error('La sesión ha terminado')}
+    if(!r.ok||d.success===false)throw new Error(d.error||d.message||`Error HTTP ${r.status}`);
+    return d;
+  }
+  const estado=t=>statuses[t.estado]||t.estado||'—';
+  function buttons(t){
+    const actions=[];
+    if(t.estado==='ESPERA'&&state.acciones.turnos_llamar)actions.push(['Llamar','llamar']);
+    if(t.estado==='LLAMADO'&&state.acciones.turnos_iniciar)actions.push(['Iniciar','iniciar']);
+    if(t.estado==='LLAMADO'&&state.acciones.turnos_omitir)actions.push(['Omitir','omitir']);
+    if(t.estado==='EN_ATENCION'&&state.acciones.turnos_pausar)actions.push(['Pausar','pausar']);
+    if(t.estado==='PAUSADO'&&state.acciones.turnos_reanudar)actions.push(['Reanudar','reanudar']);
+    return actions.map(([name,action])=>`<button class="btn small ${action==='llamar'||action==='iniciar'||action==='reanudar'?'primary':''}" data-action="${action}" data-turno="${t.id}">${name}</button>`).join('')+`<button class="btn small" data-detail="${t.id}">Ver</button>`;
+  }
+  function filtered(){
+    const rows=state.vista==='historial'?state.historial:state.vista==='atendiendo'?state.turnos.filter(t=>t.estado==='EN_ATENCION'||t.estado==='PAUSADO'):state.turnos;
+    const q=$('#search').value.trim().toLowerCase();
+    return rows.filter(t=>!q||[t.numero,t.atencion?.paciente,t.atencion?.folio,t.doctor,t.servicio,...(t.servicios||[]).map(s=>s.nombre)].join(' ').toLowerCase().includes(q));
+  }
+  function render(){
+    const rows=filtered();const titles={cola:['Mis pacientes','Turnos asignados a mi cuenta médica'],atendiendo:['Mis consultas en proceso','Consultas iniciadas y pausadas'],historial:['Mis finalizados hoy','Últimos 40 turnos cerrados de este médico']};
+    set('#panelTitle',titles[state.vista][0]);set('#panelSubtitle',titles[state.vista][1]);set('#queueCounter',`${rows.length} visibles`);
+    const body=$('#tableBody');if(!rows.length){body.innerHTML='<tr><td colspan="6"><div class="empty"><b>Sin turnos para este filtro</b>La lista se actualizará automáticamente.</div></td></tr>'}
+    else body.innerHTML=rows.map(t=>`<tr><td><span class="ticket">${safe(t.numero)}</span><div class="minor">#${t.id}</div></td><td><div class="patient">${safe(t.atencion?.paciente)}</div><div class="minor">${safe(t.atencion?.folio)}</div></td><td><span class="badge ${safe(t.estado)}">${safe(estado(t))}</span></td><td><div>${safe(t.doctor||'Médico no asignado')}</div><div class="secondary">${safe(t.servicio||(t.servicios||[]).map(s=>s.nombre).join(', ')||'Sin servicio identificado')}</div></td><td><b>${t.minutos_en_area??'—'}</b> <span class="minor">${t.minutos_en_area==null?'':'min'}</span><div class="minor">${safe(fmtDate(t.fecha_entrada))}</div></td><td><div class="rowactions">${state.vista==='historial'?`<button class="btn small" data-detail="${t.id}">Ver</button>`:buttons(t)}</div></td></tr>`).join('');
+    const current=state.turnos.find(t=>t.estado==='EN_ATENCION')||state.turnos.find(t=>t.estado==='PAUSADO');
+    set('#currentTicket',current?.numero||'—');set('#currentPatient',current?.atencion?.paciente||'Sin consulta activa');set('#currentDetails',current?`${estado(current)} · ${current.doctor||'Sin médico asignado'}`:'No hay una consulta marcada en curso.');
+    set('#listFoot',`${rows.length} registros mostrados · actualización automática cada 30 s`);
+  }
+  async function load(){
+    if(state.busy)return;state.busy=true;$('#refreshBtn').disabled=true;
+    try{
+      const query=state.areaId==null?'':`?area_id=${encodeURIComponent(state.areaId)}`;
+      const data=await request('/api/medicos/panel'+query);
+      state.turnos=data.turnos||[];state.historial=data.historial_hoy||[];state.acciones=data.acciones||{};state.areas=data.areas||[];state.areaId=data.area_actual.id;
+      state.user=data.operador;set('#userName',data.operador.nombre||data.operador.usuario);set('#userRole',(data.medico?.nombre||data.operador.rol));set('#stationUser',data.operador.usuario);
+      set('#avatar',(data.operador.nombre||'CM').split(' ').slice(0,2).map(v=>v[0]).join('').toUpperCase());set('#siteLabel',data.sede_nombre||`Sede #${data.sede_id}`);set('#stationArea',data.area_actual.nombre+' · '+(data.consultorios||[]).map(c=>c.codigo).filter((x,i,a)=>a.indexOf(x)===i).join(', '));
+      set('#kWait',data.conteos.ESPERA);set('#kCalled',data.conteos.LLAMADO);set('#kCare',data.conteos.EN_ATENCION);set('#kPaused',data.conteos.PAUSADO);set('#kFinished',data.finalizados_hoy);
+      const select=$('#areaSelect');const current=String(state.areaId);select.replaceChildren(...state.areas.map(a=>{const o=document.createElement('option');o.value=a.id;o.textContent=a.nombre;return o}));select.value=current;select.hidden=state.areas.length<=1;
+      $('#connectionDot').classList.remove('off');set('#connectionStatus','Datos actualizados');set('#stationUpdated',new Intl.DateTimeFormat('es-MX',{hour:'2-digit',minute:'2-digit'}).format(new Date()));render();
+      if(data.total_activos>data.turnos.length)toast(`Mostrando ${data.turnos.length} de ${data.total_activos} turnos activos.`,true);
+    }catch(e){$('#connectionDot').classList.add('off');set('#connectionStatus','Sin conexión');toast('Error al consultar Consulta Médica: '+e.message,true)}
+    finally{state.busy=false;$('#refreshBtn').disabled=false}
+  }
+  async function action(turnoId,accion,body={}){
+    const t=state.turnos.find(x=>x.id===turnoId);if(!t)return;
+    const confirmaciones={llamar:'llamar',iniciar:'iniciar',omitir:'omitir',reanudar:'reanudar'};
+    if(!confirm(`¿Confirmar ${confirmaciones[accion]||accion} para ${t.numero} (${t.atencion?.paciente})?`))return;
+    try{await request(`/api/turnos/${turnoId}/${accion}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});toast(`Acción ${accion} realizada en ${t.numero}.`);await load()}
+    catch(e){toast('No se pudo ejecutar la acción: '+e.message,true)}
+  }
+  const closeDetail=()=>{$('#detailOverlay').classList.add('hidden');state.dialogOpen=false};
+  const closePause=()=>{$('#pauseOverlay').classList.add('hidden');state.pauseTurno=null;state.dialogOpen=false};
+  async function openDetail(id){
+    $('#detailOverlay').classList.remove('hidden');state.dialogOpen=true;set('#detailHeading',`Turno #${id}`);set('#detailBody','Cargando detalle...');
+    try{
+      const d=await request(`/api/medicos/panel/turnos/${id}`);const t=d.turno;
+      set('#detailHeading',t.numero);
+      const fields=[['Paciente',t.atencion.paciente],['Folio de atención',t.atencion.folio],['Área',state.areas.find(x=>x.id===t.area_id)?.nombre||'Área médica'],['Estado',estado(t)],['Médico asignado',t.doctor||'No asignado'],['Servicio',t.servicio||'—'],['Entrada',fmtDate(t.fecha_entrada)],['Inicio',fmtDate(t.fecha_inicio)],['Salida',fmtDate(t.fecha_fin)],['Tiempo en área',t.minutos_en_area==null?'—':`${t.minutos_en_area} minutos`]];
+      const grid=`<div class="detailgrid">${fields.map(([name,value])=>`<article><small>${safe(name)}</small><strong>${safe(value)}</strong></article>`).join('')}</div>`;
+      const services=`<h3>Servicios de la atención</h3><div class="history">${(t.servicios||[]).map(x=>`<div class="historyItem"><b>${safe(x.nombre)}</b> · ${safe(x.estado)}</div>`).join('')||'<p class="secondary">Sin servicios asociados.</p>'}</div>`;
+      const hist=`<h3>Eventos del turno (25 más recientes)</h3><div class="history">${(d.historial||[]).map(x=>`<div class="historyItem"><b>${safe(x.accion)}</b><span class="minor">${safe(fmtDate(x.fecha))} · ${safe(x.estado_anterior||'—')} → ${safe(x.estado_nuevo||'—')}</span><span class="secondary">${safe(x.motivo||'Sin observaciones')}</span></div>`).join('')||'<p class="secondary">Sin eventos registrados.</p>'}</div>`;
+      $('#detailBody').innerHTML=grid+services+hist;
+    }catch(e){set('#detailBody','No fue posible obtener el detalle: '+e.message)}
+  }
+  $$('[data-view]').forEach(b=>b.addEventListener('click',()=>{state.vista=b.dataset.view;$$('[data-view]').forEach(x=>{x.classList.toggle('selected',x===b);x.setAttribute('aria-selected',x===b?'true':'false')});render()}));
+  $('#search').addEventListener('input',render);$('#areaSelect').addEventListener('change',()=>{state.areaId=Number($('#areaSelect').value);load()});$('#refreshBtn').addEventListener('click',load);
+  document.addEventListener('click',e=>{
+    const detail=e.target.closest('[data-detail]');if(detail){openDetail(Number(detail.dataset.detail));return}
+    const b=e.target.closest('[data-action]');if(!b)return;
+    const id=Number(b.dataset.turno),name=b.dataset.action;
+    if(name==='pausar'){state.pauseTurno=id;state.dialogOpen=true;$('#pauseText').value='';$('#pauseMinutes').value='';$('#pauseOverlay').classList.remove('hidden');$('#pauseCode').focus();return}
+    action(id,name);
+  });
+  $('#pauseForm').addEventListener('submit',async e=>{
+    e.preventDefault();if(!state.pauseTurno)return;const id=state.pauseTurno;
+    const payload={motivo_codigo:$('#pauseCode').value,motivo:$('#pauseText').value.trim()};
+    const raw=$('#pauseMinutes').value.trim();if(raw){const mins=Number(raw);if(!Number.isInteger(mins)||mins<1||mins>1440){toast('El tiempo debe ser un entero de 1 a 1440 minutos.',true);return}payload.tiempo_objetivo_minutos=mins}
+    $('#confirmPause').disabled=true;
+    try{await request(`/api/turnos/${id}/pausar`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});closePause();toast('Turno pausado correctamente.');await load()}
+    catch(err){toast('No se pudo pausar: '+err.message,true)}finally{$('#confirmPause').disabled=false}
+  });
+  $('#closeDetail').addEventListener('click',closeDetail);$('#detailOverlay').addEventListener('click',e=>{if(e.target.id==='detailOverlay')closeDetail()});
+  $('#closePause').addEventListener('click',closePause);$('#cancelPause').addEventListener('click',closePause);$('#pauseOverlay').addEventListener('click',e=>{if(e.target.id==='pauseOverlay')closePause()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeDetail();closePause()}});
+  $('#logoutBtn').addEventListener('click',async()=>{try{await request('/auth/logout',{method:'POST'});csrfToken=null;window.location.replace('/login')}catch(e){toast('No se pudo cerrar sesión: '+e.message,true)}});
+  load();setInterval(()=>{if(document.visibilityState==='visible'&&!state.dialogOpen)load()},30000);
+})();
+</script>
+</body>
+</html>

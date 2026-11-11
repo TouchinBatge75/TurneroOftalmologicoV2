@@ -122,6 +122,7 @@ def create_app():
 
     from app import seguimiento_recepcion
 
+
     app.register_blueprint(
         seguimiento_recepcion.bp_seguimiento_recepcion
     )
@@ -129,9 +130,23 @@ def create_app():
     from app.admin_operador_areas import bp_admin_operador_areas
     app.register_blueprint(bp_admin_operador_areas)
 
+        # =================================================
+    # PANEL DE DOCTORES V1
+    # =================================================
+
+    from app import panel_medicos
+
+    app.register_blueprint(
+        panel_medicos.bp_panel_medicos
+    )
+
     # =================================================
     # INTERFACES V2
     # =================================================
+    # ADMINISTRACION DE ROLES CONFIGURABLES
+    from app import admin_roles
+    app.register_blueprint(admin_roles.bp_admin_roles)
+
     from app.permisos import verificar_permiso, verificar_area
 
     def operador_puede_recepcion():
@@ -156,23 +171,61 @@ def create_app():
             return redirect(url_for('mi_panel'))
         return render_template('login.html')
 
+        # =================================================
+    # REDIRECCION CENTRALIZADA POR PERMISOS Y AREAS
+    # =================================================
+
     @app.route('/mi-panel')
     def mi_panel():
+
+        # 1. Verificar autenticación
         if not current_user.is_authenticated:
-            return redirect(url_for('login_page'))
+            return redirect(
+                url_for('login_page')
+            )
+
+        # 2. Verificar operador activo
+        if not current_user.is_active or not current_user.activo:
+            return jsonify({
+                'success': False,
+                'error': 'El operador se encuentra inactivo'
+            }), 403
+
+        # 3. RECEPCION / CAJA
+        # Hasta que exista un Dashboard Admin completo, dirigir al catálogo de roles.
+        if current_user.rol == 'ADMIN' and verificar_permiso('permisos_gestionar'):
+            return redirect(url_for('admin_roles.pagina_roles'))
+
         if operador_puede_recepcion():
-            return redirect(url_for('recepcion'))
-        # Aun no existen las interfaces de medicos, areas ni administracion.
-        # No permitir acceso a Recepcion como solucion provisional.
+
+            return redirect(
+                url_for('recepcion')
+            )
+
+        # 4. CONSULTA MEDICA
+        if panel_medicos.operador_tiene_area_medica(
+            current_user
+        ):
+
+            return redirect(
+                url_for('panel_medicos.pagina_medicos')
+            )
+
+        # 5. SIN PANEL AUTORIZADO
         return (
-            '<!doctype html><html lang="es"><meta charset="utf-8">'
+            '<!doctype html>'
+            '<html lang="es">'
+            '<meta charset="utf-8">'
             '<title>Turnero | Sin panel</title>'
-            '<body style="font-family:system-ui;margin:10vh auto;max-width:540px;padding:20px">'
+            '<body style="font-family:system-ui;'
+            'margin:10vh auto;max-width:540px;padding:20px">'
             '<h1>Tu panel aún no está disponible</h1>'
-            '<p>Tu sesión está activa, pero todavía no existe una pantalla operativa '
-            'habilitada para tus permisos y área.</p>'
+            '<p>Tu sesión está activa, pero no tienes '
+            'una pantalla operativa habilitada.</p>'
             '<p>Comunícate con Administración.</p>'
-            '</body></html>', 200
+            '</body>'
+            '</html>',
+            200
         )
 
     @app.route('/recepcion')

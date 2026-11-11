@@ -1697,6 +1697,18 @@ from werkzeug.security import (
 )
 
 
+class Rol(db.Model):
+    """Catálogo central de roles configurables; codigo es la referencia estable."""
+    __tablename__ = 'roles'
+    id = db.Column(db.Integer, primary_key=True)
+    codigo = db.Column(db.String(50), nullable=False)
+    __table_args__ = (db.UniqueConstraint('codigo', name='uq_roles_codigo'),)
+    nombre = db.Column(db.String(100), nullable=False)
+    descripcion = db.Column(db.Text)
+    activo = db.Column(db.Boolean, nullable=False, default=True, server_default='true')
+    fecha_creacion = db.Column(db.DateTime, nullable=False, server_default=db.func.now())
+
+
 class Operador(UserMixin, db.Model):
 
     __tablename__ = 'operadores'
@@ -1751,14 +1763,33 @@ class Operador(UserMixin, db.Model):
 
     rol = db.Column(
         db.String(30),
+        db.ForeignKey('roles.codigo', ondelete='RESTRICT'),
         nullable=False,
         default='AREA'
     )
+
+    rol_detalle = db.relationship('Rol', foreign_keys=[rol])
 
     sede_id = db.Column(
         db.Integer,
         db.ForeignKey('sedes.id'),
         nullable=False
+    )
+
+        # =================================================
+    # VINCULACIÓN CON MÉDICO
+    # =================================================
+
+    doctor_id = db.Column(
+        db.Integer,
+        db.ForeignKey('doctores.id'),
+        nullable=True,
+        index=True
+    )
+
+    doctor = db.relationship(
+        'Doctor',
+        foreign_keys=[doctor_id]
     )
 
     activo = db.Column(
@@ -1804,7 +1835,7 @@ class Operador(UserMixin, db.Model):
 
     @property
     def is_active(self):
-        return bool(self.activo)
+        return bool(self.activo and self.rol_detalle and self.rol_detalle.activo)
 
     def __repr__(self):
         return (
@@ -2236,7 +2267,7 @@ class RolPermiso(db.Model):
     __tablename__ = 'rol_permisos'
 
     id = db.Column(db.Integer, primary_key=True)
-    rol = db.Column(db.String(50), nullable=False)
+    rol = db.Column(db.String(50), db.ForeignKey('roles.codigo', ondelete='RESTRICT'), nullable=False)
     permiso_id = db.Column(
         db.Integer,
         db.ForeignKey('permisos.id'),
