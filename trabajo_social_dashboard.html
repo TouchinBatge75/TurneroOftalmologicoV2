@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Turnero | Trabajo Social</title>
+  <style>
+    :root{color-scheme:light;--bg:#f4f5f4;--paper:#fff;--ink:#1e2c34;--muted:#66747b;--line:#e2e6e5;--nav:#142b38;--gold:#c6a773;--success:#387766;--warn:#956c36;--shadow:0 10px 30px rgba(13,30,40,.04)}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:13px/1.5 'Segoe UI',Arial,sans-serif}header{background:var(--nav);color:#fff;border-top:3px solid var(--gold);padding:20px max(24px,calc((100vw - 1300px)/2))}header .brand{font:24px Georgia,serif}header .meta{font-size:12px;color:#bdc9cd;margin-top:3px}.wrap{max-width:1300px;margin:0 auto;padding:28px 24px}.heading{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;margin-bottom:22px}h1,h2{font-family:Georgia,serif;font-weight:normal}h1{font-size:32px;margin:0}h2{font-size:21px;margin:0}p{margin:5px 0 0;color:var(--muted)}.btn{border:1px solid var(--line);border-radius:5px;padding:10px 14px;background:var(--paper);color:var(--ink);cursor:pointer;font-weight:600}.btn:hover{border-color:var(--gold)}.btn:disabled{opacity:.5;cursor:not-allowed}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:20px}.stat,.panel{background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow)}.stat{padding:18px 20px;border-top:2px solid var(--gold)}.stat span{color:var(--muted);font-size:11px}.stat b{display:block;font:30px Georgia,serif;margin-top:4px}.panel{overflow:hidden}.panelhead{padding:19px 22px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-bottom:1px solid var(--line)}.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:16px 22px}input,select{border:1px solid var(--line);border-radius:5px;padding:10px;min-height:40px;background:#fff;color:var(--ink);font:inherit}input{flex:1;min-width:200px}.scroll{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px;text-align:left}th{background:#f0f2f1;text-transform:uppercase;color:var(--muted);font-size:10px;letter-spacing:.8px;padding:13px 16px}td{padding:14px 16px;border-top:1px solid var(--line)}.ticket{font-weight:800}.minor{font-size:11px;color:var(--muted);margin-top:3px}.pill{display:inline-block;padding:4px 9px;border-radius:4px;background:#f7f0e2;color:var(--warn);font-size:11px;font-weight:700}.pill.active{background:#e7f2ee;color:var(--success)}.empty{text-align:center;padding:40px;color:var(--muted)}.message{margin:0 22px 16px;color:var(--muted)}.message.error{color:#a55351}.foot{padding:15px 22px;border-top:1px solid var(--line);font-size:11px;color:var(--muted)}@media(max-width:720px){.grid{grid-template-columns:1fr 1fr}.wrap{padding:18px 12px}h1{font-size:26px}}@media(max-width:460px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header><div class="brand">Turnero · Trabajo Social</div><div class="meta">Control de pacientes en el área · Sesión centralizada</div></header>
+<main class="wrap">
+  <div class="heading"><div><h1>Trabajo Social</h1><p id="sede">Consultando sede...</p></div><button class="btn" id="reload" type="button">Actualizar turnos</button></div>
+  <div class="grid"><div class="stat"><span>En espera</span><b id="wait">—</b></div><div class="stat"><span>En atención</span><b id="active">—</b></div><div class="stat"><span>Turnos visibles</span><b id="total">—</b></div></div>
+  <section class="panel"><div class="panelhead"><div><h2>Cola de Trabajo Social</h2><p>Turnos reales de la sede autorizada</p></div><span id="updated" class="minor">Sin actualizar</span></div>
+    <div class="tools"><input id="search" placeholder="Buscar folio, paciente o turno" aria-label="Buscar turno"><select id="filter" aria-label="Filtrar estado"><option value="ACTIVOS">Turnos activos</option><option value="TODOS">Todos</option><option value="ESPERA">En espera</option><option value="LLAMADO">Llamados</option><option value="EN_ATENCION">En atención</option></select></div>
+    <p id="message" class="message" role="status">Consultando turnos...</p>
+    <div class="scroll"><table><thead><tr><th>Turno</th><th>Paciente</th><th>Folio</th><th>Estado</th><th>Afiliación al llegar</th><th>Ingreso</th></tr></thead><tbody id="body"><tr><td colspan="6" class="empty">Cargando...</td></tr></tbody></table></div><div class="foot">Vista de consulta. No afilia ni cambia el estado de los turnos. Las acciones se habilitarán tras verificar las reglas del backend.</div>
+  </section>
+</main>
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  let turnos = [];
+  const esc = value => String(value ?? '—').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const format = value => { if (!value) return '—'; const d = new Date(value); return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString('es-MX',{dateStyle:'short',timeStyle:'short'}); };
+  function render() {
+    const q = $('#search').value.trim().toLowerCase(), filtro = $('#filter').value;
+    const active = new Set(['ESPERA','LLAMADO','EN_ATENCION','PAUSADO']);
+    const filtered = turnos.filter(t => (filtro==='TODOS'||(filtro==='ACTIVOS'&&active.has(t.estado))||t.estado===filtro) && (!q || [t.numero_turno,t.numero,t.atencion?.folio,t.paciente?.nombre_completo,t.atencion?.nombre_paciente].some(v=>String(v||'').toLowerCase().includes(q))));
+    $('#body').innerHTML = filtered.length ? filtered.map(t => `<tr><td class="ticket">${esc(t.numero_turno||t.numero)}</td><td>${esc(t.paciente?.nombre_completo||t.atencion?.nombre_paciente)}</td><td>${esc(t.atencion?.folio)}</td><td><span class="pill ${t.estado==='EN_ATENCION'?'active':''}">${esc(t.estado)}</span></td><td>${t.atencion?.afiliado_al_llegar===true?'Sí':t.atencion?.afiliado_al_llegar===false?'No':'—'}</td><td>${esc(format(t.fecha_entrada_cola))}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No hay turnos para este filtro.</td></tr>';
+    $('#wait').textContent = turnos.filter(t=>t.estado==='ESPERA').length;
+    $('#active').textContent = turnos.filter(t=>t.estado==='EN_ATENCION').length;
+    $('#total').textContent = turnos.length;
+  }
+  async function load() {
+    $('#reload').disabled=true;
+    const msg = $('#message'); msg.textContent='Consultando turnos...';msg.classList.remove('error');
+    try {
+      const auth = await fetch('/auth/me',{credentials:'same-origin'});
+      if (auth.status===401){location.replace('/login');return;}
+      if (!auth.ok) throw new Error('No se pudo validar la sesión (HTTP '+auth.status+')');
+      const sesion = await auth.json();
+      const user = sesion.operador;
+      if (!user?.sede_id) throw new Error('No tienes una sede asignada.');
+      const r = await fetch('/api/trabajo-social/turnos?sede_id='+encodeURIComponent(user.sede_id),{credentials:'same-origin',cache:'no-store'});
+      let data={};try{data=await r.json();}catch{}
+      if(!r.ok || data.success===false) throw new Error(data.error||data.message||'HTTP '+r.status);
+      turnos=Array.isArray(data.turnos)?data.turnos:[];
+      $('#sede').textContent = data.sede?.nombre ? 'Sede '+data.sede.nombre : 'Sede asignada';
+      $('#updated').textContent = 'Actualizado '+new Date().toLocaleTimeString('es-MX');
+      msg.textContent='Datos obtenidos del servidor.';
+      render();
+    } catch(e) {msg.textContent=e.message;msg.classList.add('error');}
+    finally {$('#reload').disabled=false;}
+  }
+  $('#search').addEventListener('input',render);
+  $('#filter').addEventListener('change',render);
+  $('#reload').addEventListener('click',load);
+  load();setInterval(()=>{if(document.visibilityState==='visible')load();},30000);
+})();
+</script>
+</body>
+</html>
