@@ -14,6 +14,7 @@ from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 
 from config import Config
+from flask import render_template
 
 
 # =====================================================
@@ -212,6 +213,11 @@ def create_app():
             )
 
         # 5. SIN PANEL AUTORIZADO
+        # Panel operativo TS: se usa el mismo login central.
+        if (verificar_permiso('trabajo_social_ver')
+                and verificar_area(current_user, current_user.sede_id, 'TRABAJO_SOCIAL')):
+            return redirect(url_for('trabajo_social'))
+
         return (
             '<!doctype html>'
             '<html lang="es">'
@@ -256,9 +262,28 @@ def create_app():
     def toma_calculos():
         abort(404)
 
+  
     @app.route('/trabajo-social')
     def trabajo_social():
-        abort(404)
+
+        if not current_user.is_authenticated:
+            return redirect(url_for('login_page'))
+
+        if not (
+            verificar_permiso('trabajo_social_ver')
+            and current_user.sede_id is not None
+            and verificar_area(
+                current_user,
+                current_user.sede_id,
+                'TRABAJO_SOCIAL'
+            )
+        ):
+            return jsonify({
+                'success': False,
+                'error': 'Sin acceso a Trabajo Social'
+            }), 403
+
+        return render_template('trabajo_social_dashboard.html')
 
     # =================================================
     # CSRF CENTRALIZADO

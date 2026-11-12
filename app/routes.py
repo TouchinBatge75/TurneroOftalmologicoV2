@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import uuid4
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 from sqlalchemy import or_, and_
 from sqlalchemy import text
 from flask_login import current_user, login_required
@@ -94,6 +94,8 @@ _POLITICAS_API = {
     'actualizar_estado_doctor': ('administracion', 'doctores_gestionar'),
     'actualizar_servicio_sede': ('administracion', 'configuracion_gestionar'),
     'actualizar_area_sede': ('administracion', 'configuracion_gestionar'),
+    'consultar_pagos_externos': ('area_caja', 'recepcion_ver'),
+    'confirmar_pago_externo': ('area_caja', 'recepcion_registrar'),
 }
 
 
@@ -6490,6 +6492,16 @@ def registrar_control():
                 )
             }), 400
 
+        # No se requiere cita_id: es una clasificacion de llegada.
+        cita = None
+
+        # RECHAZAR_CITA_ID_NO_REQUERIDO
+        if data.get('cita_id') not in (None, ''):
+            return jsonify({
+                'success': False,
+                'error': 'cita_id no se utiliza. Selecciona solo Con cita o Sin cita.'
+            }), 400
+
         # =================================================
         # PACIENTE
         # =================================================
@@ -6714,43 +6726,6 @@ def registrar_control():
                         'asignación de consultorio activa en esta sede'
                     )
                 }), 409
-
-        # =================================================
-        # VALIDAR CITA
-        # =================================================
-
-        cita = None
-
-        if cita_id:
-            try:
-                cita_id = int(
-                    cita_id
-                )
-            except (
-                TypeError,
-                ValueError
-            ):
-                return jsonify({
-                    'success': False,
-                    'error': (
-                        'cita_id no es válido'
-                    )
-                }), 400
-
-            cita = db.session.get(
-                Cita,
-                cita_id
-            )
-
-            if not cita:
-                return jsonify({
-                    'success': False,
-                    'error': (
-                        'Cita no encontrada'
-                    )
-                }), 404
-
-            tipo_llegada = 'CITA'
 
         # =================================================
         # CREAR ATENCIÓN
@@ -7532,6 +7507,194 @@ def get_atenciones():
             'success': False,
             'error': str(e)
         }), 500
+
+
+# =====================================================
+# RECEPCION / CAJA - CONFIRMACION DE PAGO EXTERNO
+# El Turnero NO procesa ni registra cobros.
+# =====================================================
+
+@bp.route(
+    '/atenciones/<int:atencion_id>/pagos-externos',
+    methods=['GET']
+)
+def consultar_pagos_externos(atencion_id):
+    atencion = db.session.get(Atencion, atencion_id)
+
+    if atencion is None:
+        return jsonify({
+            'success': False,
+            'error': 'Atencion no encontrada'
+        }), 404
+
+    if atencion.sede_id != current_user.sede_id:
+        return jsonify({
+            'success': False,
+            'error': 'Atencion de otra sede'
+        }), 403
+
+    servicios = (
+        AtencionServicio.query
+        .filter_by(atencion_id=atencion.id)
+        .order_by(AtencionServicio.orden, AtencionServicio.id)
+        .all()
+    )
+
+    return jsonify({
+        'success': True,
+        'atencion_id': atencion.id,
+        'folio': atencion.folio,
+        'servicios': [
+            {
+                'id': item.id,
+                'servicio_id': item.servicio_id,
+                'nombre': (
+                    item.servicio.nombre
+                    if item.servicio else 'Servicio no disponible'
+                ),
+                'estado': item.estado,
+                'requiere_pago': item.requiere_pago,
+                'pagado': item.pagado
+            }
+            for item in servicios
+        ]
+    }), 200
+
+
+@bp.route(
+    '/atenciones/<int:atencion_id>/confirmar-pago-externo',
+    methods=['POST']
+)
+def confirmar_pago_externo(atencion_id):
+    try:
+        data = request.get_json(silent=True)
+
+        if not isinstance(data, dict):
+            return jsonify({
+                'success': False,
+                'error': 'Se requiere un objeto JSON'
+            }), 400
+
+        servicio_id = data.get('atencion_servicio_id')
+
+        if type(servicio_id) is not int or servicio_id <= 0:
+            return jsonify({
+                'success': False,
+                'error': 'atencion_servicio_id invalido'
+            }), 400
+
+        if data.get('pago_verificado') is not True:
+            return jsonify({
+                'success': False,
+                'error': 'Debe declarar que verifico el pago externo'
+            }), 400
+
+        # Serializar confirmaciones concurrentes de la atencion.
+        db.session.execute(
+            text(
+                'SELECT pg_advisory_xact_lock('
+                '731206, :atencion_id)'
+            ),
+            {'atencion_id': atencion_id}
+        )
+
+        atencion = db.session.get(Atencion, atencion_id)
+
+        if atencion is None:
+            return jsonify({
+                'success': False,
+                'error': 'Atencion no encontrada'
+            }), 404
+
+        if atencion.sede_id != current_user.sede_id:
+            return jsonify({
+                'success': False,
+                'error': 'Atencion de otra sede'
+            }), 403
+
+        if atencion.estado != 'ACTIVA':
+            return jsonify({
+                'success': False,
+                'error': 'La atencion no esta activa'
+            }), 409
+
+        servicio = (
+            AtencionServicio.query
+            .filter(
+                AtencionServicio.id == servicio_id,
+                AtencionServicio.atencion_id == atencion.id
+            )
+            .with_for_update()
+            .first()
+        )
+
+        if servicio is None:
+            return jsonify({
+                'success': False,
+                'error': 'Servicio no pertenece a esta atencion'
+            }), 404
+
+        if servicio.estado in ('COMPLETADO', 'CANCELADO'):
+            return jsonify({
+                'success': False,
+                'error': 'El servicio ya esta cerrado'
+            }), 409
+
+        if not servicio.requiere_pago:
+            return jsonify({
+                'success': False,
+                'error': 'Este servicio no requiere pago'
+            }), 409
+
+        if servicio.pagado:
+            return jsonify({
+                'success': False,
+                'error': 'El pago ya fue confirmado'
+            }), 409
+
+        # Registrar verificacion, NO un cobro.
+        servicio.pagado = True
+
+        usuario = current_user.usuario
+
+        db.session.add(
+            HistorialTurno(
+                atencion_id=atencion.id,
+                turno_area_id=None,
+                accion='PAGO_EXTERNO_CONFIRMADO',
+                estado_anterior='PENDIENTE',
+                estado_nuevo='CONFIRMADO',
+                motivo=(
+                    'Pago externo verificado por operador. '
+                    f'AtencionServicio ID: {servicio.id}. '
+                    f'Servicio ID: {servicio.servicio_id}. '
+                    'Sin procesamiento monetario en Turnero.'
+                ),
+                usuario=usuario
+            )
+        )
+
+        db.session.commit()
+
+        return jsonify({
+            'success': True,
+            'message': 'Pago externo confirmado',
+            'atencion_id': atencion.id,
+            'atencion_servicio_id': servicio.id,
+            'pagado': True,
+            'confirmado_por': usuario
+        }), 200
+
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            'Error al confirmar pago externo'
+        )
+        return jsonify({
+            'success': False,
+            'error': 'No se pudo confirmar el pago externo'
+        }), 500
+
 
 @bp.route(
     '/atencion-servicios/<int:atencion_servicio_id>/derivar-externo',
