@@ -1,0 +1,14 @@
+# Extensión segura: mantiene compose.yaml y el servicio db SIN CAMBIOS.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: "postgresql+psycopg://turnero_user:${TURNERO_DB_PASSWORD:?Define TURNERO_DB_PASSWORD en .env}@db:5432/turnero"
+      SECRET_KEY: "${SECRET_KEY:?Define SECRET_KEY en .env}"
+    ports:
+      - "127.0.0.1:5001:8000"
+    depends_on:
+      - db
